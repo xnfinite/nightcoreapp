@@ -1,0 +1,85 @@
+
+
+.about-page {
+  color: var(--nc-text);
+  animation: fadeIn 0.4s ease;
+}
+
+.about-sub {
+  opacity: 0.7;
+  margin-top: -8px;
+  margin-bottom: 20px;
+  font-size: 15px;
+}
+
+.about-logo-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0 30px;
+}
+
+.about-logo {
+  width: 140px;
+  filter: drop-shadow(0 0 25px rgba(0,168,232,0.45));
+}
+
+/* GRID OF META CARDS */
+.about-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 22px;
+  margin-bottom: 30px;
+}
+
+.about-card {
+  background: var(--nc-surface);
+  padding: 18px 22px;
+  border-radius: var(--nc-radius);
+  border: 1px solid rgba(0,168,232,0.15);
+  box-shadow: var(--nc-shadow1);
+  transition: var(--nc-transition);
+}
+
+.about-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--nc-shadow2);
+}
+
+.about-card h3 {
+  margin: 0 0 8px;
+  color: var(--nc-blue-soft);
+  font-size: 17px;
+}
+
+/* DESCRIPTIVE SECTIONS */
+.about-section {
+  margin-top: 24px;
+  padding: 20px;
+  background: var(--nc-surface-light);
+  border-radius: var(--nc-radius);
+  border: 1px solid rgba(0,168,232,0.15);
+}
+
+.about-section h3 {
+  margin-top: 0;
+  color: var(--nc-blue-soft);
+}
+
+.about-section p {
+  opacity: 0.85;
+  line-height: 1.5;
+}
+
+/* FOOTER */
+.about-footer {
+  margin-top: 30px;
+  opacity: 0.6;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Fade animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0);  }
+}

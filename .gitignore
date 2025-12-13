@@ -1,0 +1,90 @@
+# ================================
+# Night Core — PUBLIC REPO BOUNDARY
+# ================================
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Node / frontend
+node_modules/
+dist/
+
+# Rust / Tauri
+target/
+src-tauri/target/
+
+# Worker runtime (NEVER COMMIT)
+src-tauri/resources/worker/
+src-tauri/resources/worker/**
+
+# Keys & cryptographic material
+*.key
+*.sig
+*.sha256
+keys/
+keys/**
+
+# Logs & runtime output
+logs/
+*.log
+
+# Test WASM / payloads
+*.wasm
+*.b64
+nightcore_wasm_test/
+tenant-*
+run-nightcore.sh
+
+# Temporary / local
+.env
+.env.*
+# Worker binaries and internals
+src-tauri/resources/worker/
+src-tauri/resources/worker/**
+
+# Keys and secrets
+*.key
+*.sig
+*.sha256
+keys/
+keys/**
+
+# Logs and runtime artifacts
+logs/
+logs/**
+*.log
+
+# Build artifacts
+src-tauri/target/
+target/
+dist/
+
+# OS noise
+.DS_Store
+Thumbs.db
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

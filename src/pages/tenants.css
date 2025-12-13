@@ -1,0 +1,96 @@
+
+
+.tenants-page {
+  padding: 26px;
+  color: var(--nc-text);
+}
+
+.tenants-page h2 {
+  color: var(--nc-blue-soft);
+  font-size: 26px;
+  margin-bottom: 20px;
+}
+
+/* ===== Grid Layout ===== */
+.tenant-grid {
+  margin-top: 22px;
+  display: grid;
+  gap: 22px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+/* ===== Tenant Card ===== */
+.tenant-card {
+  background: var(--nc-surface);
+  padding: 22px;
+  border-radius: var(--nc-radius);
+  border: 1px solid rgba(0,168,232,0.15);
+  box-shadow: var(--nc-shadow1);
+  transition: var(--nc-transition);
+}
+
+.tenant-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--nc-shadow2);
+}
+
+/* ===== Header ===== */
+.tenant-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tenant-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--nc-blue-soft);
+}
+
+/* ===== Health Badge ===== */
+.health {
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.health.ok {
+  background: var(--nc-green);
+  color: black;
+}
+
+.health.bad {
+  background: var(--nc-red);
+  color: white;
+}
+
+/* ===== File Status ===== */
+.tenant-status {
+  margin-top: 14px;
+}
+
+.tenant-status p {
+  margin: 5px 0;
+  padding-left: 6px;
+  border-left: 3px solid transparent;
+  font-size: 15px;
+}
+
+.tenant-status p.good {
+  border-left-color: var(--nc-green);
+  color: var(--nc-metal);
+}
+
+.tenant-status p.bad {
+  border-left-color: var(--nc-red);
+  color: var(--nc-red);
+}
+
+/* ===== Empty State ===== */
+.empty-msg {
+  opacity: 0.6;
+  font-size: 16px;
+  margin-top: 10px;
+}

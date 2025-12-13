@@ -1,0 +1,194 @@
+
+
+:root {
+  --nc-red: #FF4D67;
+  --nc-red-glow: rgba(255, 77, 103, 0.65);
+  --nc-yellow: #FFDD66;
+  --nc-blue-glow: #00A8E8;
+  --nc-blue-soft: #9BD3F8;
+  --nc-green: #3BFF84;
+  --nc-surface: #0D1218;
+  --nc-surface-light: #131A22;
+  --nc-panel: #161F28;
+  --nc-border: #1F2937;
+  --nc-radius: 14px;
+  --nc-transition: 0.25s ease;
+}
+
+/* Page Wrapper */
+.policies-page {
+  padding: 26px;
+  color: #E6EDF3;
+  animation: fadeIn 0.4s ease;
+  background: radial-gradient(circle at top, rgba(0,168,232,0.05), transparent),
+              var(--nc-surface);
+  border-radius: 12px;
+}
+
+/* Title */
+.policies-page h1 {
+  font-size: 34px;
+  margin-bottom: 8px;
+  font-weight: 700;
+  color: var(--nc-blue-soft);
+  text-shadow: 0 0 12px rgba(0,168,232,0.55);
+}
+
+.subtitle {
+  opacity: 0.82;
+  margin-bottom: 26px;
+  font-size: 17px;
+}
+
+/* Info / Error Message */
+.q-msg {
+  background: rgba(0,168,232,0.12);
+  padding: 12px 18px;
+  border-radius: var(--nc-radius);
+  border-left: 3px solid var(--nc-blue-glow);
+  box-shadow: 0 0 10px rgba(0,168,232,0.35);
+  margin-bottom: 24px;
+  font-weight: 600;
+}
+
+/* Grid */
+.policy-grid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(auto-fill,minmax(330px,1fr));
+}
+
+/* Card */
+.policy-card {
+  background: var(--nc-panel);
+  padding: 20px;
+  border-radius: var(--nc-radius);
+  border: 1px solid var(--nc-border);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+  transition: var(--nc-transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.policy-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--nc-blue-glow);
+  box-shadow: 0 0 18px rgba(0,168,232,0.45);
+}
+
+/* Header Tenant Label */
+.policy-card h3 {
+  margin-top: 0;
+  font-size: 22px;
+  margin-bottom: 12px;
+  color: var(--nc-blue-soft);
+  text-shadow: 0 0 6px rgba(0,168,232,0.55);
+  letter-spacing: 0.5px;
+}
+
+/* Timestamp Badge */
+.q-field.timestamp {
+  background: rgba(0,168,232,0.08);
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(0,168,232,0.25);
+  margin-bottom: 10px;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+/* Path Field */
+.q-field.path {
+  font-family: monospace;
+  font-size: 13px;
+  opacity: 0.7;
+  word-break: break-all;
+  margin-bottom: 12px;
+}
+
+/* Action Buttons */
+.policy-buttons {
+  margin-top: 18px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.btn-allow,
+.btn-block {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: var(--nc-transition);
+  width: 48%;
+  text-align: center;
+  letter-spacing: 0.3px;
+}
+
+/* Restore Button */
+.btn-allow {
+  background: var(--nc-green);
+  color: #000;
+  box-shadow: 0 0 12px rgba(59,255,132,0.65);
+}
+.btn-allow:hover {
+  filter: brightness(1.15);
+  box-shadow: 0 0 20px rgba(59,255,132,0.95);
+}
+
+/* Delete Button */
+.btn-block {
+  background: var(--nc-red);
+  color: #000;
+  box-shadow: 0 0 12px var(--nc-red-glow);
+}
+.btn-block:hover {
+  filter: brightness(1.15);
+  box-shadow: 0 0 20px rgba(255,77,103,0.95);
+}
+
+/* Empty State */
+.empty {
+  opacity: 0.75;
+  margin-top: 24px;
+  font-size: 18px;
+  text-align: center;
+}
+
+/* Non-PRO Lockout */
+.policies-locked {
+  padding: 50px;
+  text-align: center;
+  background: var(--nc-panel);
+  border-radius: var(--nc-radius);
+  border: 1px solid var(--nc-border);
+}
+
+.policies-locked h2 {
+  font-size: 28px;
+  color: var(--nc-red);
+  text-shadow: 0 0 6px rgba(255,77,103,0.55);
+}
+
+.locked-msg {
+  opacity: 0.85;
+  font-size: 16px;
+  margin-top: 10px;
+}
+
+/* Loader Text */
+.policies-loading {
+  padding: 40px;
+  text-align: center;
+  font-size: 19px;
+  opacity: 0.85;
+}
+
+/* Fade Animation */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

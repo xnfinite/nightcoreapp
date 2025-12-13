@@ -1,0 +1,326 @@
+
+
+/* ===== Global Typography ===== */
+html, body {
+  font-size: 18px;
+  font-family: Inter, sans-serif;
+  background: #0B0D0F;
+  color: #E6EDF3;
+  margin: 0;
+}
+
+h1, h2, h3 {
+  letter-spacing: 0.4px;
+}
+
+/* ===== Night Core Brand Colors ===== */
+:root {
+  --nc-bg: #0B0D0F;
+  --nc-surface: #10161D;
+  --nc-surface-light: #161F28;
+  --nc-border: #1F2937;
+
+  --nc-blue-glow: #00A8E8;
+  --nc-blue-mid: #007EA7;
+  --nc-blue-soft: #9BD3F8;
+
+  --nc-green: #3BFF84;
+  --nc-red: #FF4D67;
+  --nc-gold: #FFD700;
+
+  --nc-shadow1: 0 2px 6px rgba(0,0,0,0.45);
+  --nc-shadow2: 0 4px 16px rgba(0,0,0,0.65);
+
+  --nc-radius: 12px;
+  --nc-transition: 0.25s ease;
+}
+
+/* ===== App Layout ===== */
+.nc-app {
+  display: flex;
+  height: 100vh;
+}
+
+/* ===== Sidebar ===== */
+.nc-sidebar {
+  width: 265px;
+  background: var(--nc-surface);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--nc-border);
+  box-shadow: 4px 0 12px rgba(0,0,0,0.4);
+}
+
+.nc-logo img {
+  width: 84px;
+  margin: 0 auto 10px;
+}
+
+.nc-logo h2 {
+  text-align: center;
+  margin: 8px 0 4px;
+  font-size: 20px;
+}
+
+.nc-version {
+  text-align: center;
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+
+.nc-pro-badge {
+  margin: 14px auto 0;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 800;
+
+  background: linear-gradient(90deg, #FFD700, #FFBD00);
+  color: #222;
+
+  border-radius: 8px;
+  box-shadow: 0 0 12px rgba(255,215,0,0.46);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+
+  width: fit-content;
+}
+
+/* ===== Sidebar Navigation ===== */
+.nc-nav {
+  margin-top: 35px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ===== Section Headers ===== */
+.nc-nav-section {
+  margin: 16px 0 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+
+  background: linear-gradient(
+    to right,
+    rgba(0,168,232,0.18),
+    rgba(0,168,232,0.06)
+  );
+  border-left: 3px solid var(--nc-blue-glow);
+  border-radius: 6px;
+
+  color: var(--nc-blue-soft);
+}
+
+/* ===== Sidebar Items ===== */
+.nc-nav a {
+  position: relative;
+  text-decoration: none;
+  color: #E6EDF3;
+  padding: 10px 14px;
+  font-size: 17px;
+  border-radius: 8px;
+  transition: var(--nc-transition);
+  border-left: 3px solid transparent;
+
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+/* Hover Glow */
+.nc-nav a:hover {
+  background: var(--nc-surface-light);
+  border-left: 3px solid var(--nc-blue-glow);
+}
+
+/* Active Route */
+.nc-nav a.active {
+  background: var(--nc-surface-light);
+  border-left: 3px solid var(--nc-blue-glow);
+  color: var(--nc-blue-soft);
+}
+
+/* ===== Anomaly Alert Pill ===== */
+.nc-alert-pill {
+  background: var(--nc-red);
+  color: black;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: auto;
+}
+
+/* ===== MAIN PANEL ===== */
+.nc-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative; /* Needed for PRO ribbon */
+}
+
+
+.nc-pro-ribbon {
+  width: 100%;
+  background: linear-gradient(90deg, rgba(255,215,0,0.12), rgba(255,215,0,0.05));
+  padding: 10px 22px;
+  border-bottom: 1px solid rgba(255,215,0,0.25);
+
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+
+  box-shadow: 0 2px 14px rgba(255,215,0,0.12);
+}
+
+.nc-pro-ribbon-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: #FFD700;
+  letter-spacing: 0.6px;
+  text-shadow: 0 0 6px rgba(255,215,0,0.45);
+}
+
+/* ===== Header ===== */
+.nc-header {
+  background: var(--nc-surface);
+  padding: 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--nc-shadow1);
+}
+
+.nc-header h1 {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--nc-blue-soft);
+}
+
+/* ===== Status Pills ===== */
+.nc-status {
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: var(--nc-shadow1);
+}
+
+.nc-status.verified {
+  background: var(--nc-green);
+  color: #000;
+}
+
+/* ===== Content Area ===== */
+.nc-content {
+  padding: 26px;
+  overflow-y: auto;
+}
+
+
+
+.nav-icon {
+  display: none;
+}
+
+.nc-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+
+  margin-right: 12px;
+  opacity: 0.9;
+  flex-shrink: 0;
+
+  filter: drop-shadow(0 0 4px rgba(0,168,232,0.45));
+}
+
+.nc-nav a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nc-nav a .nc-alert-pill {
+  margin-left: auto;
+}
+
+.nc-icon-svg {
+  transition: 0.25s ease;
+  filter: drop-shadow(0 0 3px rgba(0,168,232,0.45));
+}
+
+.nc-nav a:hover .nc-icon-svg {
+  stroke: #00c8ff;
+  filter: drop-shadow(0 0 6px #00c8ff);
+  transform: scale(1.12);
+}
+
+.nc-nav a.active .nc-icon-svg {
+  stroke: var(--nc-blue-soft);
+  filter: drop-shadow(0 0 8px var(--nc-blue-soft));
+}
+
+
+
+
+.nc-nav-btn,
+.nc-kill-btn {
+  width: 100%;
+  padding: 12px 16px;
+  margin-top: 6px;
+  margin-bottom: 6px;
+
+  background: linear-gradient(180deg, #8B0000, #B30000);
+  border: 1px solid rgba(255, 77, 103, 0.65);
+  border-radius: 8px;
+
+  color: #FFE6E6;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.4px;
+
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+
+  cursor: pointer;
+
+  box-shadow:
+    0 0 6px rgba(255, 77, 103, 0.35),
+    inset 0 0 8px rgba(255, 77, 103, 0.45);
+
+  transition: 0.2s ease;
+}
+
+/* Hover — brighter, pulsing danger */
+.nc-nav-btn:hover,
+.nc-kill-btn:hover {
+  background: linear-gradient(180deg, #A10000, #D10000);
+  border-color: rgba(255, 110, 110, 0.9);
+  color: #FFFFFF;
+
+  box-shadow:
+    0 0 14px rgba(255, 77, 103, 0.55),
+    inset 0 0 10px rgba(255, 77, 103, 0.55);
+
+  transform: translateY(-2px);
+}
+
+/* Pressed — shock pulse */
+.nc-nav-btn:active,
+.nc-kill-btn:active {
+  transform: scale(0.96);
+  background: linear-gradient(180deg, #700000, #900000);
+  box-shadow:
+    0 0 4px rgba(255, 77, 103, 0.6),
+    inset 0 0 6px rgba(255, 77, 103, 0.65);
+}

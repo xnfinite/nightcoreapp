@@ -1,0 +1,189 @@
+
+
+.prooflogs-page {
+  color: var(--nc-text);
+}
+
+/* Intro under title */
+.proof-intro {
+  font-size: 14px;
+  opacity: 0.75;
+  margin-top: 4px;
+}
+
+
+
+.proof-card,
+.proof-card h1,
+.proof-card h2,
+.proof-card h3,
+.proof-card h4 {
+  list-style: none !important;
+  list-style-type: none !important;
+  margin-block-start: 0;
+  margin-block-end: 0;
+}
+
+.proof-card h1::marker,
+.proof-card h2::marker,
+.proof-card h3::marker,
+.proof-card h4::marker {
+  content: "" !important;
+}
+
+/* GRID */
+.proof-grid {
+  margin-top: 22px;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+/* CARD */
+.proof-card {
+  background: var(--nc-surface);
+  padding: 22px;
+  border-radius: var(--nc-radius);
+  border: 1px solid rgba(0, 168, 232, 0.15);
+
+  /* Super smooth animation */
+  transition:
+    transform 0.22s cubic-bezier(.19,.82,.42,1),
+    box-shadow 0.22s cubic-bezier(.19,.82,.42,1),
+    border-color 0.22s ease;
+
+  will-change: transform;
+  box-shadow: var(--nc-shadow1);
+  position: relative;
+  overflow: hidden;
+  min-height: 210px;
+  box-sizing: border-box;
+}
+
+/* Neon side bar */
+.proof-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 6px;
+  background: var(--nc-blue-glow);
+  opacity: 0.38;
+  transition: opacity 0.25s ease, background 0.25s ease;
+}
+
+.proof-card.ok::before {
+  background: var(--nc-green);
+}
+
+.proof-card.bad::before {
+  background: var(--nc-red);
+}
+
+/* Firecracker highlight */
+.proof-card.firecracker {
+  border: 1px solid rgba(255, 77, 103, 0.55);
+}
+.proof-card.firecracker::before {
+  background: var(--nc-red);
+}
+
+/* Hover motion */
+.proof-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
+}
+.proof-card:hover::before {
+  opacity: 0.65;
+}
+
+/* HEADER */
+.proof-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.proof-header .icon {
+  font-size: 20px;
+}
+
+/* SHORT LABEL */
+.short-path {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--nc-blue-soft);
+  margin-top: 2px;
+}
+
+/* PATH */
+.path {
+  font-size: 13px;
+  opacity: 0.75;
+  margin: 6px 0 8px;
+
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.32;
+}
+
+/* STATUS COLORS */
+.ok {
+  color: var(--nc-green);
+  font-weight: 700;
+}
+.bad {
+  color: var(--nc-red);
+  font-weight: 700;
+}
+
+/* ACTION BUTTONS */
+.proof-actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.proof-actions button {
+  padding: 8px 14px;
+  background: var(--nc-surface-light);
+  border: 1px solid var(--nc-border);
+  color: var(--nc-text);
+  border-radius: 8px;
+  cursor: pointer;
+
+  transition: background 0.18s ease, border-color 0.18s ease;
+  font-size: 14px;
+}
+
+.proof-actions button:hover:not(:disabled) {
+  background: rgba(0, 168, 232, 0.18);
+  border-color: rgba(0, 168, 232, 0.35);
+}
+
+.proof-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Copy button */
+.copy-btn {
+  margin-left: auto;
+  padding: 6px 10px;
+  background: rgba(155, 211, 248, 0.08);
+  border-radius: 6px;
+  color: var(--nc-blue-soft);
+  cursor: pointer;
+
+  border: 1px solid rgba(0, 168, 232, 0.22);
+  font-size: 13px;
+  white-space: nowrap;
+
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.copy-btn:hover {
+  background: rgba(155, 211, 248, 0.18);
+  border-color: rgba(0, 168, 232, 0.38);
+}

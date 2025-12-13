@@ -1,0 +1,10 @@
+{
+  "identifier": "shell",
+  "description": "Shell permissions for running Night Core Worker",
+  "permissions": [
+    "shell:default",
+    "shell:allow-open",
+    "shell:allow-spawn",
+    "shell:allow-execute"
+  ]
+}

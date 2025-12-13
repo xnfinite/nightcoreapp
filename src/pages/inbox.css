@@ -1,0 +1,22 @@
+/* Inbox page styling — Night Core Console */
+
+.status-approved {
+  color: #3BFF84;
+  font-weight: 600;
+}
+
+.status-pending {
+  color: #FFD700;
+  font-weight: 600;
+}
+
+.inbox-source {
+  opacity: 0.85;
+}
+
+.inbox-path {
+  font-family: monospace;
+  font-size: 13px;
+  opacity: 0.75;
+  word-break: break-all;
+}

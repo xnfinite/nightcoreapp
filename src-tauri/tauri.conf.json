@@ -1,0 +1,68 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+
+  "identifier": "com.nightcore.console",
+  "productName": "Night Core Console",
+  "mainBinaryName": "nightcore-gui",
+  "version": "0.1.0",
+
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+
+  "plugins": {
+    "plugin:shell": { "open": true },
+    "plugin:opener": null,
+    "plugin:dialog": null
+  },
+
+  "app": {
+    "security": {
+      "capabilities": [
+        "default",
+        "dialog",
+        "opener",
+        "shell"
+      ]
+    },
+
+    "windows": [
+      {
+        "label": "main",
+        "title": "Night Core Console",
+
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1200,
+        "minHeight": 800,
+
+        "resizable": true,
+        "fullscreen": false,
+        "maximized": true,
+
+        "center": true,
+        "decorations": true,
+        "visible": true,
+
+        "alwaysOnTop": false,
+        "transparent": false,
+        "skipTaskbar": false,
+
+        "dragDropEnabled": true
+      }
+    ]
+  },
+
+  "bundle": {
+    "resources": [
+      "resources/worker/nightcore",
+      "resources/worker/modules",
+      "resources/worker/logs",
+      "resources/worker/guardian",
+      "resources/worker/guardian/policies/_default.json"
+    ]
+  }
+}

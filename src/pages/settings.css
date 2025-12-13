@@ -1,0 +1,156 @@
+
+
+.settings-page {
+  color: var(--nc-text);
+}
+
+.settings-intro {
+  opacity: 0.75;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+/* GRID */
+.settings-grid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+/* CARD */
+.settings-card {
+  background: var(--nc-surface);
+  padding: 20px;
+  border-radius: var(--nc-radius);
+  border: 1px solid rgba(0,168,232,0.15);
+  box-shadow: var(--nc-shadow1);
+  transition: var(--nc-transition);
+}
+
+.settings-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--nc-shadow2);
+}
+
+.settings-card h3 {
+  margin: 0 0 6px;
+  color: var(--nc-blue-soft);
+}
+
+.card-hint {
+  font-size: 13px;
+  opacity: 0.7;
+  margin-bottom: 12px;
+}
+
+/* SELECT DROPDOWNS */
+.settings-select {
+  width: 100%;
+  background: var(--nc-surface-light);
+  color: var(--nc-blue-soft);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--nc-border);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.settings-select option {
+  background: var(--nc-surface);
+  color: var(--nc-text);
+}
+
+/* ROOT PATH BOX */
+.root-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--nc-surface-light);
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--nc-border);
+}
+
+.root-path {
+  font-family: monospace;
+  opacity: 0.8;
+}
+
+.root-open-btn {
+  padding: 6px 10px;
+  background: rgba(0,168,232,0.15);
+  color: var(--nc-blue-soft);
+  border-radius: 6px;
+  border: 1px solid rgba(0,168,232,0.3);
+  cursor: pointer;
+  transition: var(--nc-transition);
+}
+
+.root-open-btn:hover {
+  background: rgba(0,168,232,0.25);
+}
+
+/* ACTION BUTTON */
+.action-btn {
+  padding: 10px 14px;
+  background: var(--nc-surface-light);
+  color: var(--nc-blue-soft);
+  border-radius: 8px;
+  border: 1px solid rgba(0,168,232,0.3);
+  cursor: pointer;
+  transition: var(--nc-transition);
+}
+
+.action-btn:hover {
+  background: rgba(0,168,232,0.2);
+}
+
+/* ===== PRO License Section ===== */
+
+.pro-license-card {
+  border: 1px solid rgba(255,215,0,0.35);
+  box-shadow: 0 0 12px rgba(255,215,0,0.25);
+}
+
+.license-input {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  margin: 10px 0;
+  font-size: 16px;
+  background: var(--nc-surface-light);
+  border: 1px solid var(--nc-border);
+  color: #fff;
+}
+
+.btn-activate-pro {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(90deg, #ffd700, #ffbf00);
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+  color: #222;
+}
+
+.btn-deactivate-pro {
+  width: 100%;
+  padding: 10px;
+  background: #ff4d67;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.license-msg {
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+.card-hint.green {
+  color: #3bff84;
+}

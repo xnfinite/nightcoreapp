@@ -1,0 +1,13 @@
+{
+  "identifier": "dialog",
+  "description": "Dialog plugin permissions",
+  "permissions": [
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "dialog:allow-message",
+    "dialog:allow-confirm"
+  ],
+  "windows": ["main"],
+  "urls": ["local"]
+}

@@ -1,0 +1,250 @@
+
+
+.guardianlogs-page {
+  color: var(--nc-text);
+}
+
+
+.guardianlogs-intro {
+  opacity: 0.75;
+  margin-bottom: 14px;
+  font-size: 14px;
+}
+
+.guardianlogs-error {
+  color: var(--nc-red);
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+
+.guardianlogs-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.filters {
+  display: flex;
+  gap: 10px;
+}
+
+.filters select {
+  background: var(--nc-surface-light);
+  color: var(--nc-blue-soft);
+  border-radius: 8px;
+  border: 1px solid var(--nc-border);
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.filters select option {
+  background: var(--nc-surface);
+  color: var(--nc-text);
+}
+
+/* View Mode Toggle */
+.view-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.mode-btn {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--nc-border);
+  background: var(--nc-surface-light);
+  color: var(--nc-text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mode-btn.active {
+  border-color: var(--nc-blue-glow);
+  color: var(--nc-blue-soft);
+}
+
+
+.guardianlogs-table-wrapper {
+  overflow-x: auto;
+}
+
+.guardianlogs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.guardianlogs-table th,
+.guardianlogs-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(148,163,184,0.2);
+}
+
+.guardianlogs-table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--nc-blue-soft);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.guardianlogs-table tr:hover {
+  background: rgba(15,23,42,0.55);
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+.reason-cell {
+  max-width: 480px;
+  word-break: break-word;
+}
+
+
+.score-pill {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 12px;
+  display: inline-block;
+  min-width: 42px;
+  text-align: center;
+}
+
+/* Risk color classes */
+.threat-safe {
+  background: rgba(59,255,132,0.15);
+  color: var(--nc-green);
+}
+
+.threat-trusted {
+  background: rgba(0,168,232,0.18);
+  color: var(--nc-blue-soft);
+}
+
+.threat-elevated {
+  background: rgba(244,180,0,0.22);
+  color: #f4b400;
+}
+
+.threat-high {
+  background: rgba(255,140,0,0.22);
+  color: #ff8c00;
+}
+
+.threat-quarantine {
+  background: rgba(255,77,103,0.25);
+  color: var(--nc-red);
+}
+
+/* TABLE ROW risk highlighting */
+.row-threat-safe {
+  background: rgba(59,255,132,0.06);
+}
+
+.row-threat-elevated {
+  background: rgba(244,180,0,0.06);
+}
+
+.row-threat-high {
+  background: rgba(255,140,0,0.06);
+}
+
+.row-threat-quarantine {
+  background: rgba(255,77,103,0.08);
+}
+
+
+.pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pill-allow {
+  background: rgba(22,163,74,0.18);
+  color: #4ade80;
+}
+
+.pill-deny {
+  background: rgba(248,113,113,0.25);
+  color: #f97373;
+}
+
+
+.guardianlogs-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.guardianlog-card {
+  border-radius: 12px;
+  padding: 18px 20px;
+  border: 1px solid rgba(148,163,184,0.18);
+  background: radial-gradient(circle at top left, #0b1020, #050816);
+}
+
+/* per-risk card borders */
+.guardianlog-card.threat-safe {
+  border-color: rgba(59,255,132,0.45);
+}
+
+.guardianlog-card.threat-elevated {
+  border-color: rgba(244,180,0,0.5);
+}
+
+.guardianlog-card.threat-high {
+  border-color: rgba(255,140,0,0.55);
+}
+
+.guardianlog-card.threat-quarantine {
+  border-color: rgba(255,77,103,0.65);
+}
+
+.gl-top-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.gl-score {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--nc-blue-soft);
+}
+
+.gl-tenant {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: var(--nc-blue-soft);
+}
+
+.gl-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  opacity: 0.85;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.gl-reason {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+/* Empty */
+.empty {
+  opacity: 0.65;
+  font-style: italic;
+  margin-top: 12px;
+}

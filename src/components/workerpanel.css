@@ -1,0 +1,59 @@
+.worker-panel {
+  margin: 20px 0 30px;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 12px;
+  box-shadow: 0 0 22px rgba(56, 189, 248, 0.06);
+}
+
+.worker-title {
+  font-size: 16px;
+  color: var(--nc-blue-soft);
+  margin-bottom: 12px;
+}
+
+.worker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.worker-actions button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  color: #c7d2fe;
+  padding: 6px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s ease;
+}
+
+.worker-actions button:hover {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+.worker-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.worker-output {
+  margin-top: 12px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  font-family: ui-monospace, monospace;
+  white-space: pre-wrap;
+  border-radius: 8px;
+  color: #a5f3fc;
+}
+
+.worker-output.err {
+  color: #f87171;
+}
