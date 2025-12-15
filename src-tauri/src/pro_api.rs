@@ -43,7 +43,7 @@ pub struct QuarantineEntry {
     pub name: String,
     pub tenant: String,
     pub timestamp: String,
-    pub path: String,   // Masked (worker://…)
+    pub path: String,
 }
 
 
@@ -68,7 +68,8 @@ fn policies_path() -> PathBuf {
     pro_root().join("policies.json")
 }
 
-/// Mask worker filesystem paths so UI never reveals real disk locations.
+
+
 fn mask_worker_path(worker_root: &Path, full: &str) -> String {
     let root_str = worker_root.to_string_lossy().to_string();
 
@@ -95,9 +96,13 @@ fn current_device_id() -> String {
 
 
 
+/* ============================================================
+   Lemon Squeezy — PUBLIC validation (no API key)
+   ============================================================ */
+
 #[derive(Debug, Deserialize)]
 struct LemonLicenseKey {
-    status: String
+    status: String, // active | expired | disabled
 }
 
 #[derive(Debug, Deserialize)]
@@ -112,37 +117,43 @@ fn validate_with_lemon(license_key: &str) -> Result<(), String> {
 
     let resp = client
         .post("https://api.lemonsqueezy.com/v1/licenses/validate")
-        .header("Accept", "application/json")
-        .form(&[("license_key", license_key)])
+        .form(&[
+            ("license_key", license_key),
+            ("activation_name", "Night Core Console"),
+        ])
         .send()
         .map_err(|e| format!("Network error contacting Lemon Squeezy: {e}"))?;
 
     if !resp.status().is_success() {
-        return Err(format!("HTTP Error: {}", resp.status()));
+        return Err(format!("HTTP error from Lemon Squeezy: {}", resp.status()));
     }
 
     let body: LemonValidateResponse =
-        resp.json().map_err(|e| format!("Invalid response: {e}"))?;
+        resp.json().map_err(|e| format!("Invalid Lemon response: {e}"))?;
 
     if !body.valid {
         return Err(body.error.unwrap_or_else(|| "License invalid".into()));
     }
 
     if let Some(lic) = body.license_key {
-        if lic.status == "expired" || lic.status == "disabled" {
+        if lic.status != "active" {
             return Err(format!("License status is '{}'", lic.status));
         }
+    } else {
+        return Err("Missing license status from Lemon".into());
     }
 
     Ok(())
 }
 
+
+
+/* ============================================================
+   Gumroad — local format check only
+   ============================================================ */
+
 fn validate_with_gumroad(license_key: &str) -> Result<(), String> {
     let key = license_key.trim().to_uppercase();
-
-    // Expected Gumroad license format:
-    // XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX
-    // 4 blocks of 8 hex characters (128-bit entropy)
 
     let parts: Vec<&str> = key.split('-').collect();
     if parts.len() != 4 {
@@ -162,6 +173,10 @@ fn validate_with_gumroad(license_key: &str) -> Result<(), String> {
 }
 
 
+
+/* ============================================================
+   PRO commands
+   ============================================================ */
 
 #[tauri::command]
 pub fn get_pro_status() -> Result<ProStatus, String> {
@@ -205,9 +220,6 @@ pub fn pro_apply_license(license_key: String) -> Result<bool, String> {
         return Err("License key cannot be empty".into());
     }
 
-    // Provider routing:
-    // - Gumroad licenses match the strict 4x8 hex format
-    // - Everything else is treated as Lemon
     let provider = if key.contains('-') {
         validate_with_gumroad(key)?;
         "gumroad"
@@ -281,6 +293,10 @@ pub fn pro_save_policies(policies: PolicyFile) -> Result<bool, String> {
 
 
 
+/* ============================================================
+   Quarantine view + kill switch (unchanged)
+   ============================================================ */
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct GuardianDecisionLiteLog {
     pub timestamp: String,
@@ -328,36 +344,27 @@ pub fn pro_list_quarantine(app: tauri::AppHandle) -> Result<Vec<QuarantineEntry>
 
     let mut out = vec![];
 
-    for (idx, line) in raw.lines().enumerate() {
-        if line.trim().is_empty() { continue; }
+    for line in raw.lines() {
+        if let Ok(parsed) = serde_json::from_str::<GuardianDecisionLiteLog>(line) {
+            let is_quarantined =
+                parsed.threat_score >= 85
+                || parsed.reason.to_lowercase().contains("quarantine");
 
-        let parsed: GuardianDecisionLiteLog = match serde_json::from_str(line) {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!("Parse error line {}: {}", idx + 1, e);
+            if !is_quarantined {
                 continue;
             }
-        };
 
-        let is_quarantined =
-            parsed.threat_score >= 85
-            || parsed.reason.to_lowercase().contains("quarantine");
+            let name = format!("{}-{}", parsed.tenant, parsed.timestamp);
+            let real = worker_root.join("quarantine").join(&name);
+            let masked = mask_worker_path(&worker_root, &real.to_string_lossy());
 
-        if !is_quarantined {
-            continue;
+            out.push(QuarantineEntry {
+                name,
+                tenant: parsed.tenant,
+                timestamp: parsed.timestamp,
+                path: masked,
+            });
         }
-
-        let name = format!("{}-{}", parsed.tenant, parsed.timestamp);
-
-        let real = worker_root.join("quarantine").join(&name);
-        let masked = mask_worker_path(&worker_root, &real.to_string_lossy());
-
-        out.push(QuarantineEntry {
-            name,
-            tenant: parsed.tenant.clone(),
-            timestamp: parsed.timestamp.clone(),
-            path: masked,
-        });
     }
 
     Ok(out)
