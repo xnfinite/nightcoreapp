@@ -11,10 +11,12 @@ export default function TenantDropZone({ onImported }: { onImported: () => void 
   const [hover, setHover] = useState(false);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null); // ✅ NEW
 
   
   async function handleBrowse() {
     setError(null);
+    setSuccess(null);
 
     const selected = await open({
       multiple: false,
@@ -28,7 +30,8 @@ export default function TenantDropZone({ onImported }: { onImported: () => void 
 
     try {
       setImporting(true);
-      await invoke("import_tenant_from_file", { path: selected });
+      const tenant = await invoke<string>("import_tenant_from_file", { path: selected });
+      setSuccess(`✔ Tenant ${tenant} submitted`);
       onImported();
     } catch (err: any) {
       console.error(err);
@@ -43,6 +46,7 @@ export default function TenantDropZone({ onImported }: { onImported: () => void 
     e.preventDefault();
     setHover(false);
     setError(null);
+    setSuccess(null);
 
     const file = e.dataTransfer.files?.[0] as TauriFile;
 
@@ -53,7 +57,8 @@ export default function TenantDropZone({ onImported }: { onImported: () => void 
 
     try {
       setImporting(true);
-      await invoke("import_tenant_from_file", { path: file.path });
+      const tenant = await invoke<string>("import_tenant_from_file", { path: file.path });
+      setSuccess(`✔ Tenant ${tenant} submitted`);
       onImported();
     } catch (err: any) {
       console.error(err);
@@ -79,6 +84,7 @@ export default function TenantDropZone({ onImported }: { onImported: () => void 
         <p className="sub">Night Core will auto-create a tenant</p>
 
         {error && <p className="error">{error}</p>}
+        {success && <p className="success">{success}</p>} {/* ✅ NEW */}
       </div>
 
       {/* ⭐ Browse Button */}
@@ -90,4 +96,3 @@ export default function TenantDropZone({ onImported }: { onImported: () => void 
     </>
   );
 }
-
