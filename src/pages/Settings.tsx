@@ -57,7 +57,6 @@ export default function Settings() {
     await invoke("open_path_universal", { path: scan.worker_root });
   }
 
-  
   async function applyLicense() {
     if (!licenseKey.trim()) {
       setApplyMsg("Please enter a license key.");
@@ -69,30 +68,33 @@ export default function Settings() {
 
     try {
       const ok = await invoke<boolean>("unlock_pro_from_license", {
-  licenseKey,
-});
-
+        licenseKey,
+      });
 
       if (ok) {
         setApplyMsg("✔ PRO License Activated");
         setLicenseKey("");
-      } else {
-        setApplyMsg("❌ License activation failed.");
+        await pro.refresh();
+
+        // 🔁 Beta-safe: force full UI remount so all PRO-gated
+        // components update consistently
+        setTimeout(() => {
+          window.location.reload();
+        }, 800);
       }
     } catch (err: any) {
-      setApplyMsg("❌ Error: " + err.toString());
+      setApplyMsg("❌ License activation failed.");
     } finally {
       setApplyLoading(false);
     }
   }
 
-  
   async function deactivate() {
     try {
       await invoke("pro_deactivate");
       setApplyMsg("✔ License removed — reverted to Open Core mode.");
     } catch (err: any) {
-      setApplyMsg("❌ Unable to remove license: " + err.toString());
+      setApplyMsg("❌ Unable to remove license.");
     }
   }
 
@@ -170,14 +172,18 @@ export default function Settings() {
           </button>
         </div>
 
-        {}
+        {/* ==== PRO LICENSE ==== */}
         <div className="settings-card pro-license-card">
           <h3>Guardian PRO License</h3>
 
           {!pro.is_pro && (
             <>
               <p className="card-hint">
-                Enter your PRO license key from Lemon Squeezy.
+                Enter your Guardian PRO license key.
+              </p>
+              <p className="card-hint small">
+                During public beta, a quick app refresh may be required to fully
+                apply PRO features.
               </p>
 
               <input

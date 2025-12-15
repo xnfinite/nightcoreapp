@@ -31,6 +31,14 @@ use pro_api::{
     pro_kill_all_running,
 };
 
+// ---------------------------------------------------------
+// 🔔 RESTORED INGESTION MODULE
+// ---------------------------------------------------------
+mod commands;
+use commands::import_tenant::import_tenant_from_file;
+
+
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GuardianDecisionLite {
     pub timestamp: String,
@@ -240,7 +248,7 @@ async fn run_worker_cmd(app: tauri::AppHandle, args: Vec<String>)
 }
 
 // =========================================================
-// 🔔 INBOX COMMANDS — ADDED
+// 🔔 INBOX COMMANDS
 // =========================================================
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -342,6 +350,9 @@ pub fn run() {
             run_worker_cmd,
             get_worker_logs_path,
             convert_windows_path_to_wsl,
+
+            // 🔁 RESTORED INGESTION
+            import_tenant_from_file,
 
             // INBOX
             list_agent_inbox,

@@ -16,6 +16,9 @@ pub struct ProLicenseFile {
     pub activated_at: String,
     pub valid: bool,
     pub device_id: String,
+
+    #[serde(default)]
+    pub provider: String, // "lemon" | "gumroad"
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -49,7 +52,7 @@ fn home_dir() -> PathBuf {
     PathBuf::from(
         env::var("HOME")
             .or_else(|_| env::var("USERPROFILE"))
-            .unwrap_or_else(|_| ".".into()),   // FIXED CLOSURE
+            .unwrap_or_else(|_| ".".into()),
     )
 }
 
@@ -93,7 +96,9 @@ fn current_device_id() -> String {
 
 
 #[derive(Debug, Deserialize)]
-struct LemonLicenseKey { status: String }
+struct LemonLicenseKey {
+    status: String
+}
 
 #[derive(Debug, Deserialize)]
 struct LemonValidateResponse {
@@ -126,6 +131,30 @@ fn validate_with_lemon(license_key: &str) -> Result<(), String> {
     if let Some(lic) = body.license_key {
         if lic.status == "expired" || lic.status == "disabled" {
             return Err(format!("License status is '{}'", lic.status));
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_with_gumroad(license_key: &str) -> Result<(), String> {
+    let key = license_key.trim().to_uppercase();
+
+    // Expected Gumroad license format:
+    // XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX
+    // 4 blocks of 8 hex characters (128-bit entropy)
+
+    let parts: Vec<&str> = key.split('-').collect();
+    if parts.len() != 4 {
+        return Err("Invalid Gumroad license format".into());
+    }
+
+    for part in &parts {
+        if part.len() != 8 {
+            return Err("Invalid Gumroad license block length".into());
+        }
+        if !part.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err("Invalid characters in Gumroad license".into());
         }
     }
 
@@ -176,7 +205,16 @@ pub fn pro_apply_license(license_key: String) -> Result<bool, String> {
         return Err("License key cannot be empty".into());
     }
 
-    validate_with_lemon(key)?;
+    // Provider routing:
+    // - Gumroad licenses match the strict 4x8 hex format
+    // - Everything else is treated as Lemon
+    let provider = if key.contains('-') {
+        validate_with_gumroad(key)?;
+        "gumroad"
+    } else {
+        validate_with_lemon(key)?;
+        "lemon"
+    };
 
     fs::create_dir_all(&pro_root())
         .map_err(|e| format!("Failed to create ~/.nightcore/pro: {e}"))?;
@@ -187,6 +225,7 @@ pub fn pro_apply_license(license_key: String) -> Result<bool, String> {
         activated_at: Utc::now().to_rfc3339(),
         valid: true,
         device_id: current_device_id(),
+        provider: provider.into(),
     };
 
     fs::write(
@@ -294,7 +333,7 @@ pub fn pro_list_quarantine(app: tauri::AppHandle) -> Result<Vec<QuarantineEntry>
 
         let parsed: GuardianDecisionLiteLog = match serde_json::from_str(line) {
             Ok(v) => v,
-            Err(e) => { 
+            Err(e) => {
                 eprintln!("Parse error line {}: {}", idx + 1, e);
                 continue;
             }
@@ -310,7 +349,6 @@ pub fn pro_list_quarantine(app: tauri::AppHandle) -> Result<Vec<QuarantineEntry>
 
         let name = format!("{}-{}", parsed.tenant, parsed.timestamp);
 
-        // Construct REAL path, then MASK it
         let real = worker_root.join("quarantine").join(&name);
         let masked = mask_worker_path(&worker_root, &real.to_string_lossy());
 
