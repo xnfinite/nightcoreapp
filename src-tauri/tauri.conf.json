@@ -57,12 +57,15 @@
   },
 
   "bundle": {
-    "resources": [
-      "resources/worker/nightcore",
-      "resources/worker/modules",
-      "resources/worker/logs",
-      "resources/worker/guardian",
-      "resources/worker/guardian/policies/_default.json"
-    ]
-  }
+  "resources": [
+    "resources/worker/nightcore",
+    "resources/worker/nightcore.exe",
+
+    "resources/worker/modules",
+    "resources/worker/logs",
+    "resources/worker/guardian",
+    "resources/worker/guardian/policies/_default.json"
+  ]
+}
+
 }
