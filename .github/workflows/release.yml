@@ -74,8 +74,12 @@ jobs:
           $out = "src-tauri/resources/worker/nightcore.exe"
 
           Invoke-WebRequest `
-            -Headers @{ Authorization = "Bearer $env:GH_TOKEN"; "User-Agent" = "nightcore-ci" } `
-            -Uri $asset.browser_download_url `
+            -Headers @{
+              Authorization = "Bearer $env:GH_TOKEN"
+              Accept        = "application/octet-stream"
+              "User-Agent"  = "nightcore-ci"
+            } `
+            -Uri $asset.url `
             -OutFile $out
 
           if (-not (Test-Path $out)) {
@@ -98,11 +102,11 @@ jobs:
             -H "User-Agent: nightcore-ci" \
             "${api}")"
 
-          url="$(echo "${json}" | jq -r \
+          asset_url="$(echo "${json}" | jq -r \
             --arg name "${WORKER_ASSET_LINUX}" \
-            '.assets[] | select(.name == $name) | .browser_download_url')"
+            '.assets[] | select(.name == $name) | .url')"
 
-          if [ -z "${url}" ] || [ "${url}" = "null" ]; then
+          if [ -z "${asset_url}" ] || [ "${asset_url}" = "null" ]; then
             echo "Worker asset not found"
             exit 1
           fi
@@ -111,7 +115,8 @@ jobs:
 
           curl -fsSL \
             -H "Authorization: Bearer ${GH_TOKEN}" \
-            -L "${url}" -o "${out}"
+            -H "Accept: application/octet-stream" \
+            -L "${asset_url}" -o "${out}"
 
           chmod +x "${out}"
 
