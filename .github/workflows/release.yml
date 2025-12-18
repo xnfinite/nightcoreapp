@@ -60,6 +60,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker\logs" | Out-Null
           New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker\quarantine" | Out-Null
           New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker\proof" | Out-Null
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker\guardian" | Out-Null
 
           $api = "https://api.github.com/repos/${env:WORKER_REPO}/releases/tags/${env:WORKER_RELEASE_TAG}"
 
@@ -102,6 +103,7 @@ jobs:
           mkdir -p src-tauri/resources/worker/logs
           mkdir -p src-tauri/resources/worker/quarantine
           mkdir -p src-tauri/resources/worker/proof
+          mkdir -p src-tauri/resources/worker/guardian
 
           api="https://api.github.com/repos/${WORKER_REPO}/releases/tags/${WORKER_RELEASE_TAG}"
 
