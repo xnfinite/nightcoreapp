@@ -120,6 +120,8 @@ jobs:
 
           chmod +x "${out}"
 
+          touch src-tauri/resources/worker/nightcore.exe
+
           if [ ! -f "${out}" ]; then
             echo "Worker download failed"
             exit 1
