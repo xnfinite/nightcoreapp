@@ -56,6 +56,7 @@ jobs:
           $ErrorActionPreference = "Stop"
 
           New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker" | Out-Null
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker\modules" | Out-Null
 
           $api = "https://api.github.com/repos/${env:WORKER_REPO}/releases/tags/${env:WORKER_RELEASE_TAG}"
 
@@ -94,6 +95,7 @@ jobs:
           set -e
 
           mkdir -p src-tauri/resources/worker
+          mkdir -p src-tauri/resources/worker/modules
 
           api="https://api.github.com/repos/${WORKER_REPO}/releases/tags/${WORKER_RELEASE_TAG}"
 
