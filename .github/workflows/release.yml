@@ -91,6 +91,8 @@ jobs:
             throw "Worker download failed"
           }
 
+          New-Item -ItemType File -Force -Path "src-tauri/resources/worker/nightcore" | Out-Null
+
       - if: matrix.target == 'linux'
         shell: bash
         env:
