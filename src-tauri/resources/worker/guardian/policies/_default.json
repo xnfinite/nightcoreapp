@@ -1,0 +1,9 @@
+{
+  "tenant": "_default",
+  "allowed_backends": ["wasmtime", "firecracker"],
+  "allow_proof_mode": true,
+  "require_manifest": true,
+  "require_signature": true,
+  "max_exec_ms": 2000,
+  "max_memory_mb": 128
+}
