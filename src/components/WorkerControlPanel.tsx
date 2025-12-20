@@ -48,16 +48,20 @@ export default function WorkerControlPanel({ onRun }: { onRun: () => void }) {
   const backendPref =
     localStorage.getItem("nc-backend") || "wasmtime";
 
-  // 🔍 Detect tenants in worker bundle
+  // Detect tenants (staged OR installed)
   useEffect(() => {
     (async () => {
       try {
         const scan: any = await invoke("get_full_system_scan");
-        const tenants = scan.tenants || [];
 
-        setHasTenants(tenants.length > 0);
+        const hasAnyTenants =
+          (scan.tenants && scan.tenants.length > 0) ||
+          (scan.staged && scan.staged.length > 0);
+
+        setHasTenants(!!hasAnyTenants);
       } catch (err) {
         console.error("Tenant scan failed:", err);
+        setHasTenants(false);
       }
     })();
   }, [onRun]);
@@ -84,8 +88,8 @@ export default function WorkerControlPanel({ onRun }: { onRun: () => void }) {
 
       {!hasTenants && (
         <div className="worker-no-tenants">
-          <p>No tenants installed.</p>
-          <p>Drop a WASM or ZIP file to create your first tenant.</p>
+          <p>No tenants detected.</p>
+          <p>Drop a WASM or ZIP file to stage your first tenant.</p>
         </div>
       )}
 
