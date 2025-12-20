@@ -7,7 +7,11 @@ use std::{
 use chrono::Utc;
 use reqwest::blocking::Client;
 
-
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
+use base64::{engine::general_purpose::STANDARD, Engine as _};
+use rand::rngs::OsRng;
+use rand::RngCore;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProLicenseFile {
@@ -18,7 +22,10 @@ pub struct ProLicenseFile {
     pub device_id: String,
 
     #[serde(default)]
-    pub provider: String, // "lemon" | "gumroad"
+    pub provider: String,
+
+    #[serde(default)]
+    pub signature: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -28,15 +35,11 @@ pub struct ProStatus {
     pub activated_at: Option<String>,
 }
 
-
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PolicyFile {
     pub allow: Vec<String>,
     pub block: Vec<String>,
 }
-
-
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct QuarantineEntry {
@@ -45,8 +48,6 @@ pub struct QuarantineEntry {
     pub timestamp: String,
     pub path: String,
 }
-
-
 
 fn home_dir() -> PathBuf {
     PathBuf::from(
@@ -68,7 +69,9 @@ fn policies_path() -> PathBuf {
     pro_root().join("policies.json")
 }
 
-
+fn device_secret_path() -> PathBuf {
+    pro_root().join("device_secret.b64")
+}
 
 fn mask_worker_path(worker_root: &Path, full: &str) -> String {
     let root_str = worker_root.to_string_lossy().to_string();
@@ -94,15 +97,112 @@ fn current_device_id() -> String {
     format!("{user}@{host}")
 }
 
+type HmacSha256 = Hmac<Sha256>;
 
+fn load_or_create_device_secret() -> Result<Vec<u8>, String> {
+    let service = "Night Core Console";
+    let account = format!("pro-hmac-key:{}", current_device_id());
 
-/* ============================================================
-   Lemon Squeezy — PUBLIC validation (no API key)
-   ============================================================ */
+    if let Ok(entry) = keyring::Entry::new(service, &account) {
+        if let Ok(b64) = entry.get_password() {
+            if let Ok(bytes) = STANDARD.decode(b64.trim()) {
+                if bytes.len() >= 32 {
+                    return Ok(bytes);
+                }
+            }
+        }
+    }
+
+    let p = device_secret_path();
+    if p.exists() {
+        let raw = fs::read_to_string(&p)
+            .map_err(|e| format!("Failed to read device secret: {e}"))?;
+        let bytes = STANDARD
+            .decode(raw.trim())
+            .map_err(|e| format!("Invalid device secret encoding: {e}"))?;
+        if bytes.len() < 32 {
+            return Err("Device secret too short".into());
+        }
+
+        if let Ok(entry) = keyring::Entry::new(service, &account) {
+            let _ = entry.set_password(raw.trim());
+        }
+
+        return Ok(bytes);
+    }
+
+    let mut secret = vec![0u8; 32];
+    OsRng.fill_bytes(&mut secret);
+    let b64 = STANDARD.encode(&secret);
+
+    fs::create_dir_all(&pro_root())
+        .map_err(|e| format!("Failed to create pro directory: {e}"))?;
+    fs::write(&p, &b64)
+        .map_err(|e| format!("Failed to write device secret: {e}"))?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&p, fs::Permissions::from_mode(0o600));
+    }
+
+    if let Ok(entry) = keyring::Entry::new(service, &account) {
+        let _ = entry.set_password(&b64);
+    }
+
+    Ok(secret)
+}
+
+fn canonical_license_string(lic: &ProLicenseFile) -> String {
+    format!(
+        "license_key={}\n\
+tier={}\n\
+activated_at={}\n\
+valid={}\n\
+device_id={}\n\
+provider={}\n",
+        lic.license_key.trim(),
+        lic.tier.trim(),
+        lic.activated_at.trim(),
+        lic.valid,
+        lic.device_id.trim(),
+        lic.provider.trim(),
+    )
+}
+
+fn sign_license(lic: &ProLicenseFile) -> Result<String, String> {
+    let secret = load_or_create_device_secret()?;
+    let msg = canonical_license_string(lic);
+
+    let mut mac = HmacSha256::new_from_slice(&secret)
+        .map_err(|_| "HMAC init failed".to_string())?;
+    mac.update(msg.as_bytes());
+
+    Ok(STANDARD.encode(mac.finalize().into_bytes()))
+}
+
+fn verify_license(lic: &ProLicenseFile) -> Result<bool, String> {
+    let Some(sig_b64) = lic.signature.as_deref() else {
+        return Ok(true);
+    };
+
+    let secret = load_or_create_device_secret()?;
+    let msg = canonical_license_string(lic);
+
+    let sig = STANDARD
+        .decode(sig_b64.trim())
+        .map_err(|e| format!("Invalid signature encoding: {e}"))?;
+
+    let mut mac = HmacSha256::new_from_slice(&secret)
+        .map_err(|_| "HMAC init failed".to_string())?;
+    mac.update(msg.as_bytes());
+
+    Ok(mac.verify_slice(&sig).is_ok())
+}
 
 #[derive(Debug, Deserialize)]
 struct LemonLicenseKey {
-    status: String, // active | expired | disabled
+    status: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -124,10 +224,6 @@ fn validate_with_lemon(license_key: &str) -> Result<(), String> {
         .send()
         .map_err(|e| format!("Network error contacting Lemon Squeezy: {e}"))?;
 
-    if !resp.status().is_success() {
-        return Err(format!("HTTP error from Lemon Squeezy: {}", resp.status()));
-    }
-
     let body: LemonValidateResponse =
         resp.json().map_err(|e| format!("Invalid Lemon response: {e}"))?;
 
@@ -139,50 +235,31 @@ fn validate_with_lemon(license_key: &str) -> Result<(), String> {
         if lic.status != "active" {
             return Err(format!("License status is '{}'", lic.status));
         }
-    } else {
-        return Err("Missing license status from Lemon".into());
     }
 
     Ok(())
 }
 
-
-
-/* ============================================================
-   Gumroad — local format check only
-   ============================================================ */
-
 fn validate_with_gumroad(license_key: &str) -> Result<(), String> {
     let key = license_key.trim().to_uppercase();
-
     let parts: Vec<&str> = key.split('-').collect();
+
     if parts.len() != 4 {
         return Err("Invalid Gumroad license format".into());
     }
 
     for part in &parts {
-        if part.len() != 8 {
-            return Err("Invalid Gumroad license block length".into());
-        }
-        if !part.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err("Invalid characters in Gumroad license".into());
+        if part.len() != 8 || !part.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err("Invalid Gumroad license format".into());
         }
     }
 
     Ok(())
 }
 
-
-
-/* ============================================================
-   PRO commands
-   ============================================================ */
-
 #[tauri::command]
 pub fn get_pro_status() -> Result<ProStatus, String> {
-    let path = license_path();
-
-    if !path.exists() {
+    if !license_path().exists() {
         return Ok(ProStatus {
             is_pro: false,
             tier: "Open Core".into(),
@@ -190,7 +267,7 @@ pub fn get_pro_status() -> Result<ProStatus, String> {
         });
     }
 
-    let raw = fs::read_to_string(&path)
+    let raw = fs::read_to_string(license_path())
         .map_err(|e| format!("Failed to read license.json: {e}"))?;
 
     let lic: ProLicenseFile =
@@ -204,14 +281,20 @@ pub fn get_pro_status() -> Result<ProStatus, String> {
         });
     }
 
+    if !verify_license(&lic)? {
+        return Ok(ProStatus {
+            is_pro: false,
+            tier: "Open Core".into(),
+            activated_at: None,
+        });
+    }
+
     Ok(ProStatus {
         is_pro: true,
         tier: lic.tier.clone(),
         activated_at: Some(lic.activated_at.clone()),
     })
 }
-
-
 
 #[tauri::command]
 pub fn pro_apply_license(license_key: String) -> Result<bool, String> {
@@ -228,17 +311,20 @@ pub fn pro_apply_license(license_key: String) -> Result<bool, String> {
         "lemon"
     };
 
-    fs::create_dir_all(&pro_root())
-        .map_err(|e| format!("Failed to create ~/.nightcore/pro: {e}"))?;
-
-    let file = ProLicenseFile {
+    let mut file = ProLicenseFile {
         license_key: key.into(),
         tier: "Guardian PRO".into(),
         activated_at: Utc::now().to_rfc3339(),
         valid: true,
         device_id: current_device_id(),
         provider: provider.into(),
+        signature: None,
     };
+
+    file.signature = Some(sign_license(&file)?);
+
+    fs::create_dir_all(&pro_root())
+        .map_err(|e| format!("Failed to create ~/.nightcore/pro: {e}"))?;
 
     fs::write(
         license_path(),
@@ -249,8 +335,6 @@ pub fn pro_apply_license(license_key: String) -> Result<bool, String> {
     Ok(true)
 }
 
-
-
 #[tauri::command]
 pub fn pro_deactivate() -> Result<bool, String> {
     if license_path().exists() {
@@ -260,21 +344,20 @@ pub fn pro_deactivate() -> Result<bool, String> {
     Ok(true)
 }
 
-
-
 #[tauri::command]
 pub fn pro_load_policies() -> Result<PolicyFile, String> {
-    let path = policies_path();
-
-    if !path.exists() {
-        return Ok(PolicyFile { allow: vec![], block: vec![] });
+    if !policies_path().exists() {
+        return Ok(PolicyFile {
+            allow: vec![],
+            block: vec![],
+        });
     }
 
-    let raw = fs::read_to_string(&path)
+    let raw = fs::read_to_string(policies_path())
         .map_err(|e| format!("Failed to read policies.json: {e}"))?;
 
-    Ok(serde_json::from_str(&raw)
-        .map_err(|e| format!("Invalid policies.json: {e}"))?)
+    serde_json::from_str(&raw)
+        .map_err(|e| format!("Invalid policies.json: {e}"))
 }
 
 #[tauri::command]
@@ -290,12 +373,6 @@ pub fn pro_save_policies(policies: PolicyFile) -> Result<bool, String> {
 
     Ok(true)
 }
-
-
-
-/* ============================================================
-   Quarantine view + kill switch (unchanged)
-   ============================================================ */
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct GuardianDecisionLiteLog {
@@ -340,7 +417,7 @@ pub fn pro_list_quarantine(app: tauri::AppHandle) -> Result<Vec<QuarantineEntry>
         .map_err(|e| format!("resolve_worker_root failed: {e}"))?;
 
     let raw = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read guardian_decisions.log: {e}"))?;
+        .map_err(|e| format!("Failed to read guardian_decisions.jsonl: {e}"))?;
 
     let mut out = vec![];
 
@@ -370,8 +447,6 @@ pub fn pro_list_quarantine(app: tauri::AppHandle) -> Result<Vec<QuarantineEntry>
     Ok(out)
 }
 
-
-
 #[tauri::command]
 pub fn pro_restore_quarantine(
     _app: tauri::AppHandle,
@@ -387,8 +462,6 @@ pub fn pro_delete_quarantine(
 ) -> Result<bool, String> {
     Err("Delete is disabled in log-only quarantine mode.".into())
 }
-
-
 
 #[tauri::command]
 pub fn pro_kill_all_running() -> Result<bool, String> {
