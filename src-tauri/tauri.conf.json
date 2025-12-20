@@ -57,15 +57,22 @@
   },
 
   "bundle": {
-  "resources": [
-    "resources/worker/nightcore",
-    "resources/worker/nightcore.exe",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/256x256.png",
+      "icons/icon.ico"
+    ],
 
-    "resources/worker/modules",
-    "resources/worker/logs",
-    "resources/worker/guardian",
-    "resources/worker/guardian/policies/_default.json"
-  ]
+    "resources": [
+      "resources/worker/nightcore",
+      "resources/worker/nightcore.exe",
+
+      "resources/worker/modules",
+      "resources/worker/logs",
+      "resources/worker/guardian",
+      "resources/worker/guardian/policies/_default.json"
+    ]
+  }
 }
 
-}
