@@ -37,9 +37,9 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      # ----------------------------
+      # ---------------------------------------
       # Linux system dependencies
-      # ----------------------------
+      # ---------------------------------------
       - if: matrix.target == 'linux'
         run: |
           sudo apt-get update
@@ -50,9 +50,9 @@ jobs:
           sudo apt-get install -y pkg-config
           sudo apt-get install -y jq
 
-      # ----------------------------
+      # ---------------------------------------
       # Download worker — WINDOWS
-      # ----------------------------
+      # ---------------------------------------
       - if: matrix.target == 'windows'
         shell: pwsh
         env:
@@ -92,9 +92,9 @@ jobs:
 
           New-Item -ItemType File -Force -Path "src-tauri/resources/worker/nightcore"
 
-      # ----------------------------
+      # ---------------------------------------
       # Download worker — LINUX
-      # ----------------------------
+      # ---------------------------------------
       - if: matrix.target == 'linux'
         shell: bash
         env:
@@ -132,14 +132,28 @@ jobs:
 
           touch src-tauri/resources/worker/nightcore.exe
 
-      # ----------------------------
+      # ---------------------------------------
+      # FINAL GUARANTEE: runtime dirs exist
+      # ---------------------------------------
+      - name: Ensure worker runtime directories exist
+        shell: bash
+        run: |
+          mkdir -p src-tauri/resources/worker
+          mkdir -p src-tauri/resources/worker/modules
+          mkdir -p src-tauri/resources/worker/logs
+          mkdir -p src-tauri/resources/worker/quarantine
+          mkdir -p src-tauri/resources/worker/proof
+          mkdir -p src-tauri/resources/worker/guardian
+          mkdir -p src-tauri/resources/worker/state
+
+      # ---------------------------------------
       # Build Tauri app
-      # ----------------------------
+      # ---------------------------------------
       - run: npx tauri build
 
-      # ----------------------------
+      # ---------------------------------------
       # Upload artifacts
-      # ----------------------------
+      # ---------------------------------------
       - uses: actions/upload-artifact@v4
         with:
           name: nightcore-${{ matrix.target }}
