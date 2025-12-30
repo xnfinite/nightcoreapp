@@ -133,18 +133,20 @@ jobs:
           touch src-tauri/resources/worker/nightcore.exe
 
       # ---------------------------------------
-      # FINAL GUARANTEE: runtime dirs exist
+      # FINAL GUARANTEE (CRITICAL)
       # ---------------------------------------
       - name: Ensure worker runtime directories exist
         shell: bash
         run: |
-          mkdir -p src-tauri/resources/worker
-          mkdir -p src-tauri/resources/worker/modules
-          mkdir -p src-tauri/resources/worker/logs
-          mkdir -p src-tauri/resources/worker/quarantine
-          mkdir -p src-tauri/resources/worker/proof
-          mkdir -p src-tauri/resources/worker/guardian
-          mkdir -p src-tauri/resources/worker/state
+          cd src-tauri
+          mkdir -p resources
+          mkdir -p resources/worker
+          mkdir -p resources/worker/modules
+          mkdir -p resources/worker/logs
+          mkdir -p resources/worker/quarantine
+          mkdir -p resources/worker/proof
+          mkdir -p resources/worker/guardian
+          mkdir -p resources/worker/state
 
       # ---------------------------------------
       # Build Tauri app
