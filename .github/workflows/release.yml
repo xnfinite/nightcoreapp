@@ -35,22 +35,24 @@ jobs:
       - run: npm install
       - run: npm run build
 
-      # Rust toolchain for Tauri
       - uses: dtolnay/rust-toolchain@stable
 
-      # Linux system deps
+      # ----------------------------
+      # Linux system dependencies
+      # ----------------------------
       - if: matrix.target == 'linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            pkg-config \
-            jq
+          sudo apt-get install -y libwebkit2gtk-4.1-dev
+          sudo apt-get install -y libgtk-3-dev
+          sudo apt-get install -y libayatana-appindicator3-dev
+          sudo apt-get install -y librsvg2-dev
+          sudo apt-get install -y pkg-config
+          sudo apt-get install -y jq
 
-      # Download worker — Windows
+      # ----------------------------
+      # Download worker — WINDOWS
+      # ----------------------------
       - if: matrix.target == 'windows'
         shell: pwsh
         env:
@@ -58,46 +60,41 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker" | Out-Null
-          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker\modules" | Out-Null
-          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker\logs" | Out-Null
-          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker\quarantine" | Out-Null
-          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker\proof" | Out-Null
-          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker\guardian" | Out-Null
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker"
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/modules"
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/logs"
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/quarantine"
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/proof"
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/guardian"
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/state"
 
-          $api = "https://api.github.com/repos/${env:WORKER_REPO}/releases/tags/${env:WORKER_RELEASE_TAG}"
+          $api = "https://api.github.com/repos/$env:WORKER_REPO/releases/tags/$env:WORKER_RELEASE_TAG"
 
           $release = Invoke-RestMethod `
             -Headers @{ Authorization = "Bearer $env:GH_TOKEN"; "User-Agent" = "nightcore-ci" } `
             -Uri $api
 
-          $asset = $release.assets |
-            Where-Object { $_.name -eq $env:WORKER_ASSET_WINDOWS } |
-            Select-Object -First 1
-
-          if (-not $asset) {
-            throw "Worker asset not found"
+          $asset = $null
+          foreach ($a in $release.assets) {
+            if ($a.name -eq $env:WORKER_ASSET_WINDOWS) {
+              $asset = $a
+            }
           }
 
-          $out = "src-tauri/resources/worker/nightcore.exe"
+          if ($null -eq $asset) {
+            throw "Worker Windows asset not found"
+          }
 
           Invoke-WebRequest `
-            -Headers @{
-              Authorization = "Bearer $env:GH_TOKEN"
-              Accept        = "application/octet-stream"
-              "User-Agent"  = "nightcore-ci"
-            } `
-            -Uri $asset.url `
-            -OutFile $out
+            -Uri $asset.browser_download_url `
+            -Headers @{ "User-Agent" = "nightcore-ci" } `
+            -OutFile "src-tauri/resources/worker/nightcore.exe"
 
-          if (-not (Test-Path $out)) {
-            throw "Worker download failed"
-          }
+          New-Item -ItemType File -Force -Path "src-tauri/resources/worker/nightcore"
 
-          # Dummy Linux name for unified code paths (beta-safe)
-          New-Item -ItemType File -Force -Path "src-tauri/resources/worker/nightcore" | Out-Null
-
-      # Download worker — Linux
+      # ----------------------------
+      # Download worker — LINUX
+      # ----------------------------
       - if: matrix.target == 'linux'
         shell: bash
         env:
@@ -105,39 +102,44 @@ jobs:
         run: |
           set -e
 
-          mkdir -p src-tauri/resources/worker/{modules,logs,quarantine,proof,guardian}
+          mkdir -p src-tauri/resources/worker
+          mkdir -p src-tauri/resources/worker/modules
+          mkdir -p src-tauri/resources/worker/logs
+          mkdir -p src-tauri/resources/worker/quarantine
+          mkdir -p src-tauri/resources/worker/proof
+          mkdir -p src-tauri/resources/worker/guardian
+          mkdir -p src-tauri/resources/worker/state
 
           api="https://api.github.com/repos/${WORKER_REPO}/releases/tags/${WORKER_RELEASE_TAG}"
 
-          json="$(curl -fsSL \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "User-Agent: nightcore-ci" \
-            "${api}")"
+          json="$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H "User-Agent: nightcore-ci" "${api}")"
 
-          asset_url="$(echo "${json}" | jq -r \
-            --arg name "${WORKER_ASSET_LINUX}" \
-            '.assets[] | select(.name == $name) | .url')"
+          asset_url=""
+          for row in $(echo "$json" | jq -c '.assets[]'); do
+            name=$(echo "$row" | jq -r '.name')
+            if [ "$name" = "$WORKER_ASSET_LINUX" ]; then
+              asset_url=$(echo "$row" | jq -r '.browser_download_url')
+            fi
+          done
 
-          if [ -z "${asset_url}" ] || [ "${asset_url}" = "null" ]; then
-            echo "Worker asset not found"
+          if [ -z "$asset_url" ]; then
+            echo "Worker Linux asset not found"
             exit 1
           fi
 
-          out="src-tauri/resources/worker/nightcore"
+          curl -fsSL "$asset_url" -o src-tauri/resources/worker/nightcore
+          chmod +x src-tauri/resources/worker/nightcore
 
-          curl -fsSL \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "Accept: application/octet-stream" \
-            -L "${asset_url}" -o "${out}"
-
-          chmod +x "${out}"
-
-          # Dummy Windows name for unified code paths (beta-safe)
           touch src-tauri/resources/worker/nightcore.exe
 
+      # ----------------------------
       # Build Tauri app
+      # ----------------------------
       - run: npx tauri build
 
+      # ----------------------------
+      # Upload artifacts
+      # ----------------------------
       - uses: actions/upload-artifact@v4
         with:
           name: nightcore-${{ matrix.target }}
