@@ -1,11 +1,12 @@
 use tauri::Manager;
-
 use tauri::AppHandle;
 
 use std::fs;
 use std::path::PathBuf;
 use chrono::Utc;
 use zip::ZipArchive;
+
+use crate::resolve_worker_root;
 
 #[tauri::command]
 pub fn import_tenant_from_file(app: AppHandle, path: String) -> Result<String, String> {
@@ -14,13 +15,12 @@ pub fn import_tenant_from_file(app: AppHandle, path: String) -> Result<String, S
         return Err("File not found".into());
     }
 
-    // Resolve worker/modules directory using Tauri v2 API
-    let base = app
-        .path()
-        .resource_dir()
-        .map_err(|e| e.to_string())?;
-
-    let modules = base.join("resources").join("worker").join("modules");
+    // ------------------------------------------------------------
+    // CRITICAL FIX:
+    // Use the SAME worker root as execution and dashboards
+    // ------------------------------------------------------------
+    let worker_root = resolve_worker_root(&app)?;
+    let modules = worker_root.join("modules");
 
     fs::create_dir_all(&modules)
         .map_err(|e| format!("Failed to ensure modules dir: {e}"))?;
@@ -59,12 +59,14 @@ pub fn import_tenant_from_file(app: AppHandle, path: String) -> Result<String, S
             .map_err(|e| format!("Failed to extract zip: {e}"))?;
     }
 
-    // Minimal inert manifest
+    // Mandatory ingestion metadata (manual channel)
     let manifest = serde_json::json!({
         "tenant": tenant,
-        "ingested_at": Utc::now().to_rfc3339(),
-        "source": "ui_import",
-        "status": "pending"
+        "ingestion": {
+            "channel": "manual",
+            "source": "gui",
+            "timestamp": Utc::now().to_rfc3339()
+        }
     });
 
     fs::write(

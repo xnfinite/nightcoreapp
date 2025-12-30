@@ -11,13 +11,9 @@ interface GuardianDecision {
   decision: string; // "allow" | "deny"
   reason: string;
 
-  // ⭐ NEW — Threat Score
+  // Threat
   threat_score?: number;
   threat_level?: string;
-}
-
-interface FullSystemStatus {
-  worker_root: string;
 }
 
 type ViewMode = "table" | "cards";
@@ -33,7 +29,7 @@ export default function GuardianLogs() {
   const [limit, setLimit] = useState("50");
   const [viewMode, setViewMode] = useState<ViewMode>("table");
 
-  // ⭐ NEW: support ?tenant= in URL (deep-link from Guardian Dashboard)
+  // support ?tenant= deep link
   const [params] = useSearchParams();
 
   useEffect(() => {
@@ -41,39 +37,22 @@ export default function GuardianLogs() {
     if (preFilter) setFilterTenant(preFilter);
   }, [params]);
 
+  // ---------------------------------------------------------
+  // LOAD GUARDIAN DECISIONS (AUTHORITATIVE RUNTIME SOURCE)
+  // ---------------------------------------------------------
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
-        const scan = (await invoke("get_full_system_scan")) as FullSystemStatus;
-        const root = scan.worker_root;
 
-        if (!root || root === "unknown") {
-          setErrorMsg("Night Core worker root is unknown. Run the worker at least once.");
+        const parsed = await invoke<GuardianDecision[]>(
+          "get_guardian_decisions"
+        );
+
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          setEvents([]);
+          setErrorMsg("No Guardian decisions logged yet.");
           return;
-        }
-
-        const raw = await invoke("read_file", {
-          path: `${root}/logs/guardian_decisions.jsonl`,
-        }).catch(() => null);
-
-        if (!raw) {
-          setErrorMsg("No Guardian decisions log found yet.");
-          return;
-        }
-
-        const lines = (raw as string)
-          .split("\n")
-          .map((l) => l.trim())
-          .filter((l) => l.length > 0);
-
-        const parsed: GuardianDecision[] = [];
-        for (const line of lines) {
-          try {
-            parsed.push(JSON.parse(line));
-          } catch (e) {
-            console.error("Failed to parse Guardian log line:", e, line);
-          }
         }
 
         parsed.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
@@ -98,7 +77,6 @@ export default function GuardianLogs() {
     [events]
   );
 
-  // ⭐ Threat Level helper
   function threatLabel(score: number | undefined) {
     const s = score ?? 0;
     if (s <= 20) return { label: "Trusted", className: "threat-safe" };
@@ -108,7 +86,6 @@ export default function GuardianLogs() {
     return { label: "Quarantine", className: "threat-quarantine" };
   }
 
-  // ⭐ Filtering
   const filtered = useMemo(() => {
     let list = events;
 
@@ -142,24 +119,19 @@ export default function GuardianLogs() {
 
       {errorMsg && <p className="guardianlogs-error">{errorMsg}</p>}
 
-      {/* Toolbar */}
       <div className="guardianlogs-toolbar">
         <div className="filters">
           <select value={filterTenant} onChange={(e) => setFilterTenant(e.target.value)}>
             <option value="all">All Tenants</option>
             {tenants.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
+              <option key={t} value={t}>{t}</option>
             ))}
           </select>
 
           <select value={filterBackend} onChange={(e) => setFilterBackend(e.target.value)}>
             <option value="all">All Backends</option>
             {backends.map((b) => (
-              <option key={b} value={b}>
-                {b}
-              </option>
+              <option key={b} value={b}>{b}</option>
             ))}
           </select>
 
@@ -193,7 +165,6 @@ export default function GuardianLogs() {
         </div>
       </div>
 
-      {}
       {filtered.length === 0 ? (
         <p className="empty">No matching Guardian decisions.</p>
       ) : viewMode === "table" ? (
@@ -210,7 +181,6 @@ export default function GuardianLogs() {
                 <th>Reason</th>
               </tr>
             </thead>
-
             <tbody>
               {filtered.map((e, idx) => {
                 const score = e.threat_score ?? 0;
@@ -225,13 +195,7 @@ export default function GuardianLogs() {
                     </td>
                     <td>{e.tenant}</td>
                     <td>
-                      <span
-                        className={
-                          e.decision === "allow"
-                            ? "pill pill-allow"
-                            : "pill pill-deny"
-                        }
-                      >
+                      <span className={e.decision === "allow" ? "pill pill-allow" : "pill pill-deny"}>
                         {e.decision}
                       </span>
                     </td>
@@ -246,7 +210,6 @@ export default function GuardianLogs() {
           </table>
         </div>
       ) : (
-        
         <div className="guardianlogs-cards">
           {filtered.map((e, idx) => {
             const score = e.threat_score ?? 0;
@@ -262,24 +225,14 @@ export default function GuardianLogs() {
                 <div className="gl-tenant">{e.tenant}</div>
 
                 <div className="gl-meta">
-                  <span>
-                    <strong>Backend:</strong> {e.backend}
-                  </span>
+                  <span><strong>Backend:</strong> {e.backend}</span>
                   <span>
                     <strong>Decision:</strong>{" "}
-                    <span
-                      className={
-                        e.decision === "allow"
-                          ? "pill pill-allow"
-                          : "pill pill-deny"
-                      }
-                    >
+                    <span className={e.decision === "allow" ? "pill pill-allow" : "pill pill-deny"}>
                       {e.decision}
                     </span>
                   </span>
-                  <span>
-                    <strong>Proof:</strong> {e.proof_mode ? "yes" : "no"}
-                  </span>
+                  <span><strong>Proof:</strong> {e.proof_mode ? "yes" : "no"}</span>
                 </div>
 
                 <div className="gl-reason">

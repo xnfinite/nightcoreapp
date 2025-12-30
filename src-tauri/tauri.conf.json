@@ -15,8 +15,8 @@
 
   "plugins": {
     "plugin:shell": { "open": true },
-    "plugin:opener": null,
-    "plugin:dialog": null
+    "plugin:opener": {},
+    "plugin:dialog": {}
   },
 
   "app": {
@@ -33,30 +33,23 @@
       {
         "label": "main",
         "title": "Night Core Console",
-
         "width": 1400,
         "height": 900,
         "minWidth": 1200,
         "minHeight": 800,
-
         "resizable": true,
-        "fullscreen": false,
         "maximized": true,
-
         "center": true,
         "decorations": true,
         "visible": true,
-
-        "alwaysOnTop": false,
-        "transparent": false,
-        "skipTaskbar": false,
-
         "dragDropEnabled": true
       }
     ]
   },
 
   "bundle": {
+    "active": true,
+
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -70,9 +63,13 @@
 
       "resources/worker/modules",
       "resources/worker/logs",
+      "resources/worker/state",
+      "resources/worker/quarantine",
+      "resources/worker/proof",
       "resources/worker/guardian",
-      "resources/worker/guardian/policies/_default.json"
+
+      "resources/worker/keys",
+      "resources/worker/keys/maintainers/admin1.key"
     ]
   }
 }
-

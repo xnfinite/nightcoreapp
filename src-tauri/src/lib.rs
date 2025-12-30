@@ -1,22 +1,13 @@
 use serde::{Serialize, Deserialize};
-use std::{env, fs, path::{Path, PathBuf}};
+use std::{env, fs, path::PathBuf};
 
 use tauri_plugin_opener::init as opener_init;
 use tauri_plugin_shell::init as shell_init;
 use tauri_plugin_dialog::init as dialog_init;
-use tauri_plugin_opener::OpenerExt;
 use tauri::Manager;
 
-use chrono::Utc;
-use zip::ZipArchive;
-
-// SIGNING
-use ed25519_dalek::SigningKey;
-use rand::rngs::OsRng;
-use base64::{engine::general_purpose::STANDARD, Engine as _};
-
 // ---------------------------------------------------------
-// PRO API MODULE
+// PRO API
 // ---------------------------------------------------------
 mod pro_api;
 use pro_api::{
@@ -32,13 +23,17 @@ use pro_api::{
 };
 
 // ---------------------------------------------------------
-// 🔔 RESTORED INGESTION MODULE
+// INGESTION + STATE
 // ---------------------------------------------------------
 mod commands;
 use commands::import_tenant::import_tenant_from_file;
 
+mod inbox;
+mod tenant_state;
 
-
+// ---------------------------------------------------------
+// GUARDIAN STRUCT (MATCHES WORKER)
+// ---------------------------------------------------------
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GuardianDecisionLite {
     pub timestamp: String,
@@ -69,22 +64,49 @@ pub struct GuardianDecisionLite {
     pub trusted_signer: bool,
 }
 
-/// ⭐ PUBLIC: Used by Guardian, Watchtower, Vault, Inbox
+// ============================================================
+// WORKER ROOT RESOLUTION (DEV + RELEASE SAFE)
+// ============================================================
 pub fn resolve_worker_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let base = app.path().resource_dir().map_err(|e| e.to_string())?;
-    Ok(base.join("resources").join("worker"))
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?;
+
+    let resources = resource_dir
+        .ancestors()
+        .find(|p| p.ends_with("src-tauri"))
+        .map(|p| p.join("resources"))
+        .unwrap_or(resource_dir.clone());
+
+    let worker = resources.join("worker");
+
+    if !worker.exists() {
+        return Err(format!("Worker root not found at {}", worker.display()));
+    }
+
+    Ok(worker)
 }
 
-fn resolve_worker_bin(worker_root: &PathBuf) -> Result<PathBuf,String> {
+fn resolve_worker_bin(worker_root: &PathBuf) -> Result<PathBuf, String> {
     #[cfg(windows)]
-    let path = worker_root.join("nightcore.exe");
+    let bin = worker_root.join("nightcore.exe");
     #[cfg(not(windows))]
-    let path = worker_root.join("nightcore");
+    let bin = worker_root.join("nightcore");
 
-    if !path.exists() {
-        return Err(format!("Worker binary missing at {:?}", path));
+    if !bin.exists() {
+        return Err(format!("Worker binary missing at {}", bin.display()));
     }
-    Ok(path)
+
+    Ok(bin)
+}
+
+// ============================================================
+// BASIC COMMANDS
+// ============================================================
+#[tauri::command]
+fn greet(name: &str) -> String {
+    format!("Hello, {}!", name)
 }
 
 #[tauri::command]
@@ -93,149 +115,158 @@ fn get_worker_logs_path(app: tauri::AppHandle) -> Result<String, String> {
     Ok(root.join("logs").to_string_lossy().to_string())
 }
 
-#[tauri::command]
-fn convert_windows_path_to_wsl(path: String) -> Result<String,String> {
-    let output = std::process::Command::new("wslpath")
-        .arg("-a")
-        .arg(&path)
-        .output()
-        .map_err(|e| e.to_string())?;
-
-    if !output.status.success() {
-        return Err("Failed to convert Windows path".into());
-    }
-
-    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
-}
-
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}!", name)
-}
-
+// ============================================================
+// SYSTEM SCAN
+// ============================================================
 #[derive(Serialize)]
 pub struct TenantInfo {
-    name: String,
-    has_wasm: bool,
-    has_sig: bool,
-    has_sha: bool,
-    has_pubkey: bool,
-    manifest: bool,
+    pub name: String,
+    pub has_wasm: bool,
+    pub has_sig: bool,
+    pub has_sha: bool,
+    pub has_pubkey: bool,
+    pub manifest: bool,
 }
 
 #[derive(Serialize)]
 pub struct LogStatus {
-    dashboard_html: bool,
-    history_html: bool,
-    orchestration_json: bool,
-    orchestration_html: bool,
-    firecracker_html: bool,
+    pub dashboard_html: bool,
+    pub history_html: bool,
+    pub orchestration_json: bool,
+    pub orchestration_html: bool,
+    pub firecracker_html: bool,
 }
 
 #[derive(Serialize)]
 pub struct FullSystemStatus {
-    worker_root: String,
-    worker_display: String,
-    tenants: Vec<TenantInfo>,
-    logs: LogStatus,
-    firecracker_installed: bool,
-    worker_version: String,
-    sdk_version: String,
-}
-
-#[derive(Serialize)]
-pub struct BackendTestResult {
-    pub ok: bool,
-    pub message: String,
+    pub worker_root: String,
+    pub worker_display: String,
+    pub tenants: Vec<TenantInfo>,
+    pub logs: LogStatus,
+    pub firecracker_installed: bool,
+    pub worker_version: String,
+    pub sdk_version: String,
 }
 
 #[tauri::command]
 async fn get_full_system_scan(app: tauri::AppHandle) -> FullSystemStatus {
     let worker_root = resolve_worker_root(&app).unwrap_or_else(|_| PathBuf::from("unknown"));
 
-    let worker_display = worker_root
+    let display = worker_root
         .to_string_lossy()
         .to_string()
         .replace(env::var("HOME").unwrap_or_default().as_str(), "~");
 
     let modules = worker_root.join("modules");
-    let logs_dir = worker_root.join("logs");
+    let logs = worker_root.join("logs");
 
     let mut tenants = vec![];
 
     if modules.exists() {
         if let Ok(entries) = fs::read_dir(&modules) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if !path.is_dir() { continue; }
+            for e in entries.flatten() {
+                let p = e.path();
+                if !p.is_dir() { continue; }
 
-                let name = entry.file_name().to_string_lossy().to_string();
                 tenants.push(TenantInfo {
-                    name,
-                    has_wasm: path.join("module.wasm").exists(),
-                    has_sig: path.join("module.sig").exists(),
-                    has_sha: path.join("module.sha256").exists(),
-                    has_pubkey: path.join("pubkey.b64").exists(),
-                    manifest: path.join("manifest.json").exists(),
+                    name: e.file_name().to_string_lossy().to_string(),
+                    has_wasm: p.join("module.wasm").exists(),
+                    has_sig: p.join("module.sig").exists(),
+                    has_sha: p.join("module.sha256").exists(),
+                    has_pubkey: p.join("pubkey.b64").exists(),
+                    manifest: p.join("manifest.json").exists(),
                 });
             }
         }
     }
 
-    let logs = LogStatus {
-        dashboard_html:       logs_dir.join("nightcore_dashboard.html").exists(),
-        history_html:         logs_dir.join("nightcore_history_dashboard.html").exists(),
-        orchestration_json:   logs_dir.join("orchestration_report.json").exists(),
-        orchestration_html:   logs_dir.join("orchestration_dashboard.html").exists(),
-        firecracker_html:     logs_dir.join("firecracker_proof.log").exists(),
+    let logs_status = LogStatus {
+        dashboard_html: logs.join("nightcore_dashboard.html").exists(),
+        history_html: logs.join("nightcore_history_dashboard.html").exists(),
+        orchestration_json: logs.join("orchestration_report.json").exists(),
+        orchestration_html: logs.join("orchestration_dashboard.html").exists(),
+        firecracker_html: logs.join("firecracker_proof.log").exists(),
     };
 
     FullSystemStatus {
         worker_root: worker_root.to_string_lossy().to_string(),
-        worker_display,
+        worker_display: display,
         tenants,
-        logs,
+        logs: logs_status,
         firecracker_installed: which::which("firecracker").is_ok(),
         worker_version: "unknown".into(),
         sdk_version: "v1".into(),
     }
 }
 
+// ============================================================
+// GUARDIAN + TENANT STATE
+// ============================================================
 #[tauri::command]
-fn read_file(path: String) -> Result<String,String> {
-    fs::read_to_string(&path).map_err(|e| format!("Failed: {}", e))
-}
+fn get_guardian_decisions(_app: tauri::AppHandle)
+-> Result<Vec<GuardianDecisionLite>, String> {
 
-#[tauri::command]
-fn get_guardian_decisions(app: tauri::AppHandle)
--> Result<Vec<GuardianDecisionLite>,String> {
-    let worker_root = resolve_worker_root(&app)?;
-    let path = worker_root.join("logs/guardian_decisions.jsonl");
+    // FIX #1: tolerate missing file before first execution
+    let raw = match read_runtime_file("logs/guardian_decisions.jsonl".into()) {
+        Ok(v) => v,
+        Err(_) => return Ok(vec![]),
+    };
 
-    if !path.exists() { return Ok(vec![]); }
-
-    let raw = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read decisions: {}", e))?;
-
-    let mut results = vec![];
-
+    let mut out = vec![];
     for line in raw.lines() {
         if let Ok(v) = serde_json::from_str::<GuardianDecisionLite>(line) {
-            results.push(v);
+            out.push(v);
         }
     }
 
-    Ok(results)
+    Ok(out)
 }
 
 #[tauri::command]
-async fn run_worker_cmd(app: tauri::AppHandle, args: Vec<String>)
--> Result<String,String> {
+fn get_tenant_states(app: tauri::AppHandle)
+-> Result<Vec<tenant_state::TenantState>, String> {
+    let root = resolve_worker_root(&app)?;
+    tenant_state::list_tenant_states(&root).map_err(|e| e.to_string())
+}
+
+// ============================================================
+// RUNTIME FILE READER (READ-ONLY)
+// ============================================================
+#[tauri::command]
+fn read_runtime_file(rel: String) -> Result<String, String> {
+    let home = PathBuf::from(
+        env::var("HOME")
+            .or_else(|_| env::var("USERPROFILE"))
+            .map_err(|_| "Failed to resolve home directory")?
+    );
+
+    let root = home.join(".nightcore");
+    let path = root.join(rel);
+
+    if !path.starts_with(&root) {
+        return Err("Invalid runtime file path".into());
+    }
+
+    fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read {}: {}", path.display(), e))
+}
+
+// ============================================================
+// WORKER COMMAND EXECUTION
+// ============================================================
+#[tauri::command]
+async fn run_worker_cmd(
+    app: tauri::AppHandle,
+    args: Vec<String>
+) -> Result<String, String> {
     let worker_root = resolve_worker_root(&app)?;
     let bin = resolve_worker_bin(&worker_root)?;
 
+    let home = env::var("HOME").unwrap_or_default();
+
     let output = std::process::Command::new(bin)
-        .current_dir(&worker_root)
+        .current_dir(&worker_root) // FIX #2: REQUIRED for execution
+        .env("HOME", home)
         .args(args)
         .output()
         .map_err(|e| e.to_string())?;
@@ -247,10 +278,9 @@ async fn run_worker_cmd(app: tauri::AppHandle, args: Vec<String>)
     Ok(String::from_utf8_lossy(&output.stdout).into())
 }
 
-// =========================================================
-// 🔔 INBOX COMMANDS
-// =========================================================
-
+// ============================================================
+// INBOX / APPROVAL
+// ============================================================
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InboxEntry {
     pub tenant: String,
@@ -260,50 +290,50 @@ pub struct InboxEntry {
 }
 
 #[tauri::command]
-fn list_agent_inbox(app: tauri::AppHandle) -> Result<Vec<InboxEntry>, String> {
-    let worker_root = resolve_worker_root(&app)?;
-    let modules_dir = worker_root.join("modules");
+fn list_agent_inbox(app: tauri::AppHandle)
+-> Result<Vec<InboxEntry>, String> {
+    let root = resolve_worker_root(&app)?;
+    let entries = inbox::scan_system_inbox(&root).map_err(|e| e.to_string())?;
+
     let mut out = vec![];
 
-    if !modules_dir.exists() {
-        return Ok(out);
-    }
+    for e in entries {
+        let signed = e.path.join("module.sig").exists();
+        let masked = e.path.to_string_lossy()
+            .replace(root.to_string_lossy().as_ref(), "worker://");
 
-    for entry in fs::read_dir(&modules_dir).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let path = entry.path();
-
-        let tenant = entry.file_name().to_string_lossy().to_string();
-        if !tenant.starts_with("tenant-agent-") { continue; }
-
-        let signed = path.join("module.sig").exists();
-
-        let timestamp = fs::read_to_string(path.join("manifest.json"))
-            .ok()
-            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
-            .and_then(|v| v.get("ingested_at").map(|t| t.to_string()))
-            .unwrap_or_else(|| "unknown".into());
-
-        let masked = path.to_string_lossy()
-            .replace(worker_root.to_string_lossy().as_ref(), "worker://")
-            .replace('\\', "/");
-
-        out.push(InboxEntry { tenant, timestamp, signed, path: masked });
+        out.push(InboxEntry {
+            tenant: e.tenant,
+            timestamp: e.timestamp,
+            signed,
+            path: masked,
+        });
     }
 
     Ok(out)
 }
 
 #[tauri::command]
-fn approve_agent_tenant(app: tauri::AppHandle, tenant: String) -> Result<bool, String> {
-    let worker_root = resolve_worker_root(&app)?;
-    let bin = resolve_worker_bin(&worker_root)?;
+fn approve_agent_tenant(app: tauri::AppHandle, tenant: String)
+-> Result<bool, String> {
+    let root = resolve_worker_root(&app)?;
+
+    tenant_state::mark_authorized(&root, &tenant)
+        .map_err(|e| e.to_string())?;
+
+    let bin = resolve_worker_bin(&root)?;
+
+    let key_path = root.join("keys/maintainers/admin1.key");
+    if !key_path.exists() {
+        return Err(format!("Signing key missing at {}", key_path.display()));
+    }
 
     let status = std::process::Command::new(bin)
-        .current_dir(&worker_root)
+        .current_dir(&root)
+        .env("HOME", env::var("HOME").unwrap_or_default())
         .arg("sign")
-        .arg("--dir").arg(worker_root.join("modules").join(&tenant))
-        .arg("--key").arg(worker_root.join("keys/maintainers/admin1.key"))
+        .arg("--dir").arg(root.join("modules").join(&tenant))
+        .arg("--key").arg(&key_path)
         .status()
         .map_err(|e| e.to_string())?;
 
@@ -314,18 +344,9 @@ fn approve_agent_tenant(app: tauri::AppHandle, tenant: String) -> Result<bool, S
     Ok(true)
 }
 
-#[tauri::command]
-fn reject_agent_tenant(app: tauri::AppHandle, tenant: String) -> Result<bool, String> {
-    let worker_root = resolve_worker_root(&app)?;
-    let tenant_dir = worker_root.join("modules").join(&tenant);
-
-    if tenant_dir.exists() {
-        fs::remove_dir_all(tenant_dir).map_err(|e| e.to_string())?;
-    }
-
-    Ok(true)
-}
-
+// ============================================================
+// PRO
+// ============================================================
 #[tauri::command]
 fn tauri_get_pro_status() -> Result<pro_api::ProStatus, String> {
     get_pro_status()
@@ -336,6 +357,9 @@ fn unlock_pro_from_license(license_key: String) -> Result<bool, String> {
     pro_apply_license(license_key)
 }
 
+// ============================================================
+// APP BOOT
+// ============================================================
 #[cfg_attr(mobile, tauri::mobile_builder_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -344,22 +368,18 @@ pub fn run() {
         .plugin(dialog_init())
         .invoke_handler(tauri::generate_handler![
             greet,
-            get_full_system_scan,
-            read_file,
-            get_guardian_decisions,
-            run_worker_cmd,
             get_worker_logs_path,
-            convert_windows_path_to_wsl,
+            get_full_system_scan,
+            get_guardian_decisions,
+            get_tenant_states,
+            read_runtime_file,
+            run_worker_cmd,
 
-            // 🔁 RESTORED INGESTION
             import_tenant_from_file,
 
-            // INBOX
             list_agent_inbox,
             approve_agent_tenant,
-            reject_agent_tenant,
 
-            // PRO
             tauri_get_pro_status,
             unlock_pro_from_license,
             pro_deactivate,

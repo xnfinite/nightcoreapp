@@ -1,15 +1,14 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import "./guardian.css";
 
 import TenantDropZone from "@/components/TenantDropZone";
 import WorkerControlPanel from "@/components/WorkerControlPanel";
+import ApprovePanel from "@/components/ApprovePanel";
 
 import { useGuardianDecisions, GuardianDecisionLite } from "@/hooks/useGuardianDecisions";
+import { useTenantStates, TenantState } from "@/hooks/useTenantStates";
 
-// ⭐ ADD — PRO hook
 import useProStatus from "@/hooks/useProStatus";
-
-
 
 interface SummaryStats {
   total: number;
@@ -21,11 +20,12 @@ interface SummaryStats {
   lastDecision: GuardianDecisionLite | null;
 }
 
-
+function displayValue(v?: string | null) {
+  if (!v || v === "unknown") return "legacy (untracked)";
+  return v;
+}
 
 export default function Guardian() {
-
-  // ⭐ ADD — read PRO status
   const pro = useProStatus();
 
   const {
@@ -35,7 +35,21 @@ export default function Guardian() {
     refresh
   } = useGuardianDecisions(3000);
 
-  
+  const {
+    tenants,
+    loading: tenantsLoading,
+    refresh: refreshTenants
+  } = useTenantStates(3000);
+
+  const [approveTarget, setApproveTarget] = useState<TenantState | null>(null);
+
+  const pendingTenants = useMemo(() => {
+    return tenants.filter((t: TenantState) =>
+      t.observation.state === "pending_approval" ||
+      t.observation.state === "cleared" ||
+      t.observation.state === "blocked"
+    );
+  }, [tenants]);
 
   const summary: SummaryStats = useMemo(() => {
     if (decisions.length === 0) {
@@ -53,7 +67,6 @@ export default function Guardian() {
     let allowed = 0;
     let denied = 0;
     let quarantined = 0;
-
     let sumThreat = 0;
     let maxThreat = 0;
 
@@ -78,13 +91,11 @@ export default function Guardian() {
     };
   }, [decisions]);
 
-  
-
   const insightText = useMemo(() => {
     if (summary.total === 0) return "No Guardian activity yet.";
 
     if (summary.quarantined > 0)
-      return `⚠️ Quarantine triggered for ${summary.quarantined} module run(s).`;
+      return `Quarantine triggered for ${summary.quarantined} module run(s).`;
 
     if (summary.avgThreat <= 20) return "Threat posture is low — system stable.";
     if (summary.avgThreat <= 45) return "Threat posture is moderate.";
@@ -93,11 +104,8 @@ export default function Guardian() {
     return "Threat posture is high — immediate review recommended.";
   }, [summary]);
 
-  
-
   function threatClass(d: GuardianDecisionLite): string {
     const score = d.threat_score;
-
     if (score >= 85) return "threat-quarantine";
     if (score >= 65) return "threat-high";
     if (score >= 45) return "threat-elevated";
@@ -105,38 +113,83 @@ export default function Guardian() {
     return "threat-trusted";
   }
 
-  
-
   return (
     <div className="guardian-page nc-content-inner">
       <h2 className="watchtower-title">Guardian Lock Watchtower</h2>
 
-      {/* ⭐ ADD — PRO Ribbon */}
       {pro.is_pro && (
         <div className="guardian-pro-ribbon">
           Guardian PRO — Advanced Threat Analytics Enabled
         </div>
       )}
 
-      <TenantDropZone onImported={refresh} />
-      <WorkerControlPanel onRun={refresh} />
+      <TenantDropZone onImported={() => { refresh(); refreshTenants(); }} />
+      <WorkerControlPanel onRun={() => { refresh(); refreshTenants(); }} />
 
-      {loading && (
-        <div className="guardian-intro">Loading Guardian Lock…</div>
+      {(loading || tenantsLoading) && (
+        <div className="guardian-intro">Loading Watchtower…</div>
       )}
 
-      {!loading && (
+      {!loading && !tenantsLoading && (
         <>
           <p className="guardian-intro">
-            The Watchtower monitors all WASM executions for unsafe behavior,
-            policy violations, signature anomalies, and environmental threats.
+            The Watchtower exposes execution state, authorization, and runtime behavior.
+            Threat analysis begins only after execution is authorized.
           </p>
 
           {error && <p className="guardian-error">{error}</p>}
 
-          {}
-          <div className="guardian-summary-grid">
+          {pendingTenants.length > 0 && (
+            <>
+              <h3 className="section-title">Pending Execution</h3>
 
+              <div className="guardian-tiles-grid">
+                {pendingTenants.map((t: TenantState) => {
+                  const needsApproval = !t.authorization.approved && !t.execution.has_executed;
+
+                  return (
+                    <div key={t.id} className="guardian-tile threat-pending">
+                      <div className="tile-header">
+                        <span className="tile-tenant">{t.name}</span>
+                        <span className="tile-score">—</span>
+                      </div>
+
+                      <div className="tile-sub">
+                        <span className="tile-label">Execution Pending</span>
+                        <span className="tile-decision">{t.observation.state}</span>
+                      </div>
+
+                      <div className="tile-reason">
+                        Ingestion: {displayValue(t.ingestion.channel)} / {displayValue(t.ingestion.source)}
+                      </div>
+
+                      <div className="tile-capabilities">
+                        <span className="cap-badge">
+                          Approved: {t.authorization.approved ? "Yes" : "No"}
+                        </span>
+                        <span className="cap-badge">
+                          Executed: No
+                        </span>
+                      </div>
+
+                      <div className="tile-actions">
+                        {needsApproval && (
+                          <button
+                            className="btn-primary"
+                            onClick={() => setApproveTarget(t)}
+                          >
+                            Review & Approve
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          <div className="guardian-summary-grid">
             <div className="guardian-summary-card">
               <div className="summary-label">Total Events</div>
               <div className="summary-value">{summary.total}</div>
@@ -168,7 +221,6 @@ export default function Guardian() {
 
           <p className="guardian-insight">{insightText}</p>
 
-          {}
           <h3 className="section-title">Threat Tiles (Recent Decisions)</h3>
 
           <div className="guardian-tiles-grid">
@@ -181,7 +233,6 @@ export default function Guardian() {
                 return (
                   <div key={idx} className={`guardian-tile ${cls}`}>
 
-                    {/* Header */}
                     <div className="tile-header">
                       <span className="tile-tenant">{d.tenant}</span>
 
@@ -199,13 +250,11 @@ export default function Guardian() {
                       <span className="tile-score">{d.threat_score}</span>
                     </div>
 
-                    {/* Label + decision */}
                     <div className="tile-sub">
                       <span className="tile-label">{d.threat_label}</span>
                       <span className="tile-decision">{d.decision}</span>
                     </div>
 
-                    {/* Bar */}
                     <div className="tile-bar">
                       <div
                         className="tile-bar-fill"
@@ -213,10 +262,8 @@ export default function Guardian() {
                       />
                     </div>
 
-                    {/* Reason */}
                     <div className="tile-reason">{d.reason}</div>
 
-                    {/* Capabilities */}
                     <div className="tile-capabilities">
                       <span className="cap-badge">FS: {d.wasi_fs_access ? "Yes" : "No"}</span>
                       <span className="cap-badge">NET: {d.wasi_net_access ? "Yes" : "No"}</span>
@@ -234,7 +281,6 @@ export default function Guardian() {
                       )}
                     </div>
 
-                    {/* Timestamp */}
                     <div className="tile-ts">{d.timestamp}</div>
 
                   </div>
@@ -243,7 +289,6 @@ export default function Guardian() {
             )}
           </div>
 
-          {}
           <h3 className="section-title">Recent Guardian Decisions</h3>
 
           <div className="guardian-recent">
@@ -257,8 +302,15 @@ export default function Guardian() {
               </div>
             ))}
           </div>
-
         </>
+      )}
+
+      {approveTarget && (
+        <ApprovePanel
+          tenant={approveTarget}
+          onClose={() => setApproveTarget(null)}
+          onApproved={() => { refresh(); refreshTenants(); }}
+        />
       )}
     </div>
   );

@@ -46,20 +46,21 @@ export default function Timeline() {
     invoke("get_full_system_scan")
       .then(async (res) => {
         const scan = res as FullSystemStatus;
-        const root = scan.worker_root;
 
+        // Keep tenant list exactly as before
         if (scan.tenants) {
           setTenants(scan.tenants.map((t) => t.name));
         }
 
         try {
-          const raw = await invoke("read_file", {
-            path: `${root}/logs/timeline.json`,
+          // ✅ Read runtime timeline log
+          const raw = await invoke<string>("read_runtime_file", {
+            rel: "logs/timeline.json",
           });
 
           if (!raw) return;
 
-          const json = JSON.parse(raw as string);
+          const json = JSON.parse(raw);
           if (Array.isArray(json.runs)) {
             setRuns(json.runs);
           }
@@ -126,14 +127,11 @@ export default function Timeline() {
                       </div>
 
                       <div className="timestamp">{e.timestamp}</div>
-
                       <div className="tenant">{e.tenant}</div>
-
                       <div className="msg">{e.event}</div>
                     </div>
                   ))}
 
-                {/* Empty state */}
                 {run.entries.filter(
                   (e) =>
                     (filterTenant === "all" || e.tenant === filterTenant) &&

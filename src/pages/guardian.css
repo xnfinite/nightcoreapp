@@ -1,5 +1,3 @@
-
-
 /* PAGE LAYOUT */
 .guardian-page {
   padding: 24px 32px;
@@ -229,7 +227,6 @@
   opacity: 0.7;
 }
 
-
 .guardian-pro-ribbon {
   background: linear-gradient(90deg, #38bdf8, #0ea5e9);
   color: #020617;
@@ -243,4 +240,52 @@
   letter-spacing: 0.03em;
   box-shadow: 0 0 14px rgba(56, 189, 248, 0.55);
   border: 1px solid rgba(56, 189, 248, 0.85);
+}
+
+/* PENDING EXECUTION (CRZ) */
+.guardian-tile.threat-pending {
+  background: rgba(15, 23, 42, 0.96);
+  border-color: rgba(148, 163, 184, 0.35);
+  box-shadow: var(--nc-shadow1);
+}
+
+.guardian-tile.threat-pending:hover {
+  border-color: var(--nc-blue-soft);
+  box-shadow: 0 0 16px rgba(0, 168, 232, 0.22);
+}
+
+.guardian-tile.threat-pending .tile-score {
+  opacity: 0.6;
+  font-weight: 600;
+}
+
+.guardian-tile.threat-pending .tile-label {
+  color: var(--nc-blue-soft);
+}
+
+.guardian-tile.threat-pending .tile-decision {
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.guardian-tile .tile-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.guardian-tile .tile-actions .btn-primary {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  color: #e0f2fe;
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+
+.guardian-tile .tile-actions .btn-primary:hover {
+  background: rgba(56, 189, 248, 0.25);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
 }

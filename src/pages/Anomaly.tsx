@@ -34,24 +34,20 @@ export default function Anomaly() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  
   useEffect(() => {
     (async () => {
       try {
-        // Get correct bundled worker logs path from Tauri backend
-        const logsDir = await invoke<string>("get_worker_logs_path");
-        const logs = logsDir.endsWith("/") ? logsDir : logsDir + "/";
-
+        // ✅ Read runtime logs (authoritative)
         const [driftRaw, timelineRaw, firecrackerRaw] = await Promise.all([
-          invoke("read_file", { path: logs + "anomaly_drift.json" }).catch(() => null),
-          invoke("read_file", { path: logs + "timeline.json" }).catch(() => null),
-          invoke("read_file", { path: logs + "firecracker_boot.log" }).catch(() => null),
+          invoke<string>("read_runtime_file", { rel: "logs/anomaly_drift.json" }).catch(() => null),
+          invoke<string>("read_runtime_file", { rel: "logs/timeline.json" }).catch(() => null),
+          invoke<string>("read_runtime_file", { rel: "logs/firecracker_boot.log" }).catch(() => null),
         ]);
 
         // Parse Drift File
         if (driftRaw) {
           try {
-            const parsed = JSON.parse(driftRaw as string) as AnomalyReport;
+            const parsed = JSON.parse(driftRaw) as AnomalyReport;
             setDrift(parsed.drift || []);
           } catch (e) {
             console.error("Failed to parse anomaly_drift.json:", e);
@@ -62,7 +58,7 @@ export default function Anomaly() {
         // Parse Timeline
         if (timelineRaw) {
           try {
-            const parsed = JSON.parse(timelineRaw as string) as { runs: TimelineRun[] };
+            const parsed = JSON.parse(timelineRaw) as { runs: TimelineRun[] };
             setTimelineRuns(parsed.runs || []);
           } catch (e) {
             console.error("Failed to parse timeline.json:", e);
@@ -71,15 +67,13 @@ export default function Anomaly() {
 
         // Parse Firecracker log
         if (firecrackerRaw) {
-          setFirecrackerLog(firecrackerRaw as string);
+          setFirecrackerLog(firecrackerRaw);
         }
       } finally {
         setLoading(false);
       }
     })();
   }, []);
-
-  
 
   // Count drift events per tenant
   const tenantStats = useMemo(() => {
@@ -110,8 +104,6 @@ export default function Anomaly() {
     return firecrackerLog.includes("Timeout") || firecrackerLog.includes("timeout");
   }, [firecrackerLog]);
 
-  
-
   if (loading) {
     return (
       <div className="anomaly-page">
@@ -121,7 +113,6 @@ export default function Anomaly() {
     );
   }
 
-  // Dynamic tenants for heatmap (AUTO instead of hardcoded)
   const driftTenants = Object.keys(tenantStats);
 
   return (
@@ -133,7 +124,6 @@ export default function Anomaly() {
 
       {errorMsg && <p className="error">{errorMsg}</p>}
 
-      {/* Top Metric Cards */}
       <div className="cards-row">
         <div className="card">
           <div className="card-label">Total Drift Events</div>
@@ -158,7 +148,6 @@ export default function Anomaly() {
         </div>
       </div>
 
-      {}
       <div className="layout-grid">
         <div className="panel">
           <h3>Tenant Drift Heatmap</h3>
@@ -212,7 +201,6 @@ export default function Anomaly() {
         </div>
       </div>
 
-      {}
       <div className="layout-grid">
         <div className="panel">
           <h3>Verification Trace</h3>
@@ -223,13 +211,11 @@ export default function Anomaly() {
             <div className="trace-list">
               {recentTraceEntries.map((e, i) => (
                 <div key={i} className="trace-row">
-                  {/* NEW: Dot instead of emoji */}
                   <span
                     className={`trace-status-dot ${
                       e.status === "ok" ? "ok" : "error"
                     }`}
                   ></span>
-
                   <span className="trace-ts mono">{e.timestamp}</span>
                   <span className="trace-tenant mono">{e.tenant}</span>
                   <span className="trace-msg mono">{e.event}</span>

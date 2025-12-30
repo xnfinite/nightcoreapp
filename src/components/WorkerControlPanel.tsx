@@ -38,49 +38,73 @@ const IconBrain = () => (
   </svg>
 );
 
+type TenantState = {
+  id: string;
+  name: string;
+  ingestion: { channel: string; source: string; timestamp: string };
+  authorization: { approved: boolean; approved_at: string | null; approved_by: string | null };
+  execution: { has_executed: boolean; last_execution_time: string | null };
+  observation: { current_threat_score: number | null; state: string };
+};
+
 export default function WorkerControlPanel({ onRun }: { onRun: () => void }) {
   const [busy, setBusy] = useState(false);
   const [output, setOutput] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hasTenants, setHasTenants] = useState(false);
+  const [hasPendingApproval, setHasPendingApproval] = useState(false);
 
-  // Read backend choice from localStorage
-  const backendPref =
-    localStorage.getItem("nc-backend") || "wasmtime";
+  const backendPref = localStorage.getItem("nc-backend") || "wasmtime";
 
-  // Detect tenants (staged OR installed)
+  async function refreshState() {
+    try {
+      const scan: any = await invoke("get_full_system_scan");
+      const tenants = Array.isArray(scan?.tenants) ? scan.tenants : [];
+      setHasTenants(tenants.length > 0);
+
+      const states = await invoke<TenantState[]>("get_tenant_states");
+      const pending = (states || []).some(
+        (t) => !t.authorization.approved && !t.execution.has_executed
+      );
+      setHasPendingApproval(pending);
+    } catch (err) {
+      console.error("WorkerControlPanel refresh failed:", err);
+      setHasTenants(false);
+      setHasPendingApproval(false);
+    }
+  }
+
   useEffect(() => {
-    (async () => {
-      try {
-        const scan: any = await invoke("get_full_system_scan");
-
-        const hasAnyTenants =
-          (scan.tenants && scan.tenants.length > 0) ||
-          (scan.staged && scan.staged.length > 0);
-
-        setHasTenants(!!hasAnyTenants);
-      } catch (err) {
-        console.error("Tenant scan failed:", err);
-        setHasTenants(false);
-      }
-    })();
+    refreshState();
   }, [onRun]);
 
   async function run(args: string[]) {
     setBusy(true);
     setError(null);
-    setOutput(null);
 
     try {
       const result = await invoke<string>("run_worker_cmd", { args });
       setOutput(result);
       onRun();
+      refreshState();
     } catch (err: any) {
-      setError(err.toString());
+      setError(String(err));
     } finally {
       setBusy(false);
     }
   }
+
+  function explainApprovalBlock() {
+    setError(null);
+    setOutput(
+      [
+        "Execution blocked: pending approvals detected.",
+        "Approve tenants in Guardian Lock Watchtower (Pending Execution) first, then run again.",
+      ].join("\n")
+    );
+  }
+
+  const runBlocked = hasPendingApproval;
 
   return (
     <div className="worker-panel">
@@ -93,44 +117,38 @@ export default function WorkerControlPanel({ onRun }: { onRun: () => void }) {
         </div>
       )}
 
+      {hasTenants && hasPendingApproval && (
+        <div className="worker-no-tenants">
+          <p>Execution paused.</p>
+          <p>One or more tenants require approval before running.</p>
+        </div>
+      )}
+
       <div className="worker-actions">
-        {/* RUN ALL TENANTS */}
         <button
           disabled={busy || !hasTenants}
-          onClick={() =>
-            run([
-              "run",
-              "--all",
-              "--backend",
-              backendPref,
-            ])
-          }
+          onClick={() => {
+            if (runBlocked) return explainApprovalBlock();
+            return run(["run", "--all", "--backend", backendPref]);
+          }}
         >
           <IconRun /> Run All Tenants
         </button>
 
-        {/* PROOF MODE */}
         <button
           disabled={busy || !hasTenants}
-          onClick={() =>
-            run([
-              "run",
-              "--all",
-              "--proof",
-              "--backend",
-              backendPref,
-            ])
-          }
+          onClick={() => {
+            if (runBlocked) return explainApprovalBlock();
+            return run(["run", "--all", "--proof", "--backend", backendPref]);
+          }}
         >
           <IconProof /> Proof Mode
         </button>
 
-        {/* VERIFY ENV */}
         <button disabled={busy} onClick={() => run(["verify-env"])}>
           <IconEnv /> Verify Environment
         </button>
 
-        {/* EXPORT DASHBOARD */}
         <button
           disabled={busy || !hasTenants}
           onClick={() => run(["export-dashboard"])}
@@ -138,7 +156,6 @@ export default function WorkerControlPanel({ onRun }: { onRun: () => void }) {
           <IconDashboard /> Export Dashboard
         </button>
 
-        {/* INSPECT STATE */}
         <button
           disabled={busy || !hasTenants}
           onClick={() => run(["inspect-state", "--all-tenants"])}

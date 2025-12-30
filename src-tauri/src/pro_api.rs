@@ -399,25 +399,16 @@ struct GuardianDecisionLiteLog {
     pub trusted_signer: bool,
 }
 
-fn worker_logs_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let worker_root = crate::resolve_worker_root(app)?;
-    Ok(worker_root.join("logs"))
-}
-
 #[tauri::command]
 pub fn pro_list_quarantine(app: tauri::AppHandle) -> Result<Vec<QuarantineEntry>, String> {
-    let logs_dir = worker_logs_path(&app)?;
-    let path = logs_dir.join("guardian_decisions.jsonl");
-
-    if !path.exists() {
-        return Ok(vec![]);
-    }
+    // ✅ Read from authoritative runtime guardian log (beta: log-only quarantine)
+    let raw = match crate::read_runtime_file("logs/guardian_decisions.jsonl".into()) {
+        Ok(v) => v,
+        Err(_) => return Ok(vec![]),
+    };
 
     let worker_root = crate::resolve_worker_root(&app)
         .map_err(|e| format!("resolve_worker_root failed: {e}"))?;
-
-    let raw = fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read guardian_decisions.jsonl: {e}"))?;
 
     let mut out = vec![];
 
@@ -432,8 +423,13 @@ pub fn pro_list_quarantine(app: tauri::AppHandle) -> Result<Vec<QuarantineEntry>
             }
 
             let name = format!("{}-{}", parsed.tenant, parsed.timestamp);
-            let real = worker_root.join("quarantine").join(&name);
-            let masked = mask_worker_path(&worker_root, &real.to_string_lossy());
+
+            let runtime_path = home_dir()
+                .join(".nightcore")
+                .join("logs")
+                .join("guardian_decisions.jsonl");
+
+            let masked = mask_worker_path(&worker_root, &runtime_path.to_string_lossy());
 
             out.push(QuarantineEntry {
                 name,
