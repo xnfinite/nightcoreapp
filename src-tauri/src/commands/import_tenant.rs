@@ -1,4 +1,3 @@
-use tauri::Manager;
 use tauri::AppHandle;
 
 use std::fs;
@@ -16,8 +15,8 @@ pub fn import_tenant_from_file(app: AppHandle, path: String) -> Result<String, S
     }
 
     // ------------------------------------------------------------
-    // CRITICAL FIX:
-    // Use the SAME worker root as execution and dashboards
+    // Beta behavior: import must create a tenant visible immediately
+    // in worker runtime root (not the bundled worker folder).
     // ------------------------------------------------------------
     let worker_root = resolve_worker_root(&app)?;
     let modules = worker_root.join("modules");
@@ -38,6 +37,7 @@ pub fn import_tenant_from_file(app: AppHandle, path: String) -> Result<String, S
     // Create tenant directory
     let tenant = format!("tenant-{}", Utc::now().timestamp());
     let tenant_dir = modules.join(&tenant);
+
     fs::create_dir_all(&tenant_dir)
         .map_err(|e| format!("Failed to create tenant dir: {e}"))?;
 

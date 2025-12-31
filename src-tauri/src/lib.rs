@@ -65,34 +65,72 @@ pub struct GuardianDecisionLite {
 }
 
 // ============================================================
-// WORKER ROOT RESOLUTION (DEV + RELEASE SAFE)
+// ROOTS (BETA SAFE)
+// - Worker runtime root: ~/.nightcore (authoritative runtime state)
+// - Bundled worker binary: resource_dir()/worker/nightcore(.exe)
+// - App root: app_data_dir()/NightCore (safe UI-owned drop/state)
 // ============================================================
-pub fn resolve_worker_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .map_err(|e| e.to_string())?;
 
-    let resources = resource_dir
-        .ancestors()
-        .find(|p| p.ends_with("src-tauri"))
-        .map(|p| p.join("resources"))
-        .unwrap_or(resource_dir.clone());
-
-    let worker = resources.join("worker");
-
-    if !worker.exists() {
-        return Err(format!("Worker root not found at {}", worker.display()));
-    }
-
-    Ok(worker)
+fn home_dir() -> Result<PathBuf, String> {
+    Ok(PathBuf::from(
+        env::var("HOME")
+            .or_else(|_| env::var("USERPROFILE"))
+            .map_err(|_| "Failed to resolve home directory")?
+    ))
 }
 
-fn resolve_worker_bin(worker_root: &PathBuf) -> Result<PathBuf, String> {
+pub fn resolve_worker_runtime_root() -> Result<PathBuf, String> {
+    let home = home_dir()?;
+    Ok(home.join(".nightcore"))
+}
+
+pub fn resolve_app_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let root = base.join("NightCore");
+    fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    Ok(root)
+}
+
+// NOTE: Keep this name because your codebase already calls it a lot.
+// In beta, "worker_root" means the RUNTIME ROOT (not bundled resources).
+pub fn resolve_worker_root(_app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let root = resolve_worker_runtime_root()?;
+    Ok(root)
+}
+
+fn ensure_worker_runtime_dirs(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let root = resolve_worker_root(app)?;
+
+    // Create the runtime root and the folders the GUI expects.
+    // This prevents "Worker root not found" on first launch.
+    fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+
+    let dirs = [
+        "modules",
+        "logs",
+        "quarantine",
+        "proof",
+        "guardian",
+        "state",
+        "keys/maintainers",
+    ];
+
+    for d in dirs {
+        let p = root.join(d);
+        let _ = fs::create_dir_all(p);
+    }
+
+    Ok(root)
+}
+
+fn resolve_bundled_worker_bin(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let resource_dir = app.path().resource_dir().map_err(|e| e.to_string())?;
+    let worker_dir = resource_dir.join("worker");
+
     #[cfg(windows)]
-    let bin = worker_root.join("nightcore.exe");
+    let bin = worker_dir.join("nightcore.exe");
     #[cfg(not(windows))]
-    let bin = worker_root.join("nightcore");
+    let bin = worker_dir.join("nightcore");
 
     if !bin.exists() {
         return Err(format!("Worker binary missing at {}", bin.display()));
@@ -111,7 +149,7 @@ fn greet(name: &str) -> String {
 
 #[tauri::command]
 fn get_worker_logs_path(app: tauri::AppHandle) -> Result<String, String> {
-    let root = resolve_worker_root(&app)?;
+    let root = ensure_worker_runtime_dirs(&app)?;
     Ok(root.join("logs").to_string_lossy().to_string())
 }
 
@@ -150,12 +188,14 @@ pub struct FullSystemStatus {
 
 #[tauri::command]
 async fn get_full_system_scan(app: tauri::AppHandle) -> FullSystemStatus {
-    let worker_root = resolve_worker_root(&app).unwrap_or_else(|_| PathBuf::from("unknown"));
+    let worker_root = ensure_worker_runtime_dirs(&app).unwrap_or_else(|_| PathBuf::from("unknown"));
+
+    let home = env::var("HOME").or_else(|_| env::var("USERPROFILE")).unwrap_or_default();
 
     let display = worker_root
         .to_string_lossy()
         .to_string()
-        .replace(env::var("HOME").unwrap_or_default().as_str(), "~");
+        .replace(home.as_str(), "~");
 
     let modules = worker_root.join("modules");
     let logs = worker_root.join("logs");
@@ -166,7 +206,9 @@ async fn get_full_system_scan(app: tauri::AppHandle) -> FullSystemStatus {
         if let Ok(entries) = fs::read_dir(&modules) {
             for e in entries.flatten() {
                 let p = e.path();
-                if !p.is_dir() { continue; }
+                if !p.is_dir() {
+                    continue;
+                }
 
                 tenants.push(TenantInfo {
                     name: e.file_name().to_string_lossy().to_string(),
@@ -206,7 +248,7 @@ async fn get_full_system_scan(app: tauri::AppHandle) -> FullSystemStatus {
 fn get_guardian_decisions(_app: tauri::AppHandle)
 -> Result<Vec<GuardianDecisionLite>, String> {
 
-    // FIX #1: tolerate missing file before first execution
+    // tolerate missing file before first execution
     let raw = match read_runtime_file("logs/guardian_decisions.jsonl".into()) {
         Ok(v) => v,
         Err(_) => return Ok(vec![]),
@@ -225,7 +267,7 @@ fn get_guardian_decisions(_app: tauri::AppHandle)
 #[tauri::command]
 fn get_tenant_states(app: tauri::AppHandle)
 -> Result<Vec<tenant_state::TenantState>, String> {
-    let root = resolve_worker_root(&app)?;
+    let root = ensure_worker_runtime_dirs(&app)?;
     tenant_state::list_tenant_states(&root).map_err(|e| e.to_string())
 }
 
@@ -234,13 +276,7 @@ fn get_tenant_states(app: tauri::AppHandle)
 // ============================================================
 #[tauri::command]
 fn read_runtime_file(rel: String) -> Result<String, String> {
-    let home = PathBuf::from(
-        env::var("HOME")
-            .or_else(|_| env::var("USERPROFILE"))
-            .map_err(|_| "Failed to resolve home directory")?
-    );
-
-    let root = home.join(".nightcore");
+    let root = resolve_worker_runtime_root()?;
     let path = root.join(rel);
 
     if !path.starts_with(&root) {
@@ -259,13 +295,15 @@ async fn run_worker_cmd(
     app: tauri::AppHandle,
     args: Vec<String>
 ) -> Result<String, String> {
-    let worker_root = resolve_worker_root(&app)?;
-    let bin = resolve_worker_bin(&worker_root)?;
+    let runtime_root = ensure_worker_runtime_dirs(&app)?;
+    let bin = resolve_bundled_worker_bin(&app)?;
 
-    let home = env::var("HOME").unwrap_or_default();
+    let home = env::var("HOME")
+        .or_else(|_| env::var("USERPROFILE"))
+        .unwrap_or_default();
 
     let output = std::process::Command::new(bin)
-        .current_dir(&worker_root) // FIX #2: REQUIRED for execution
+        .current_dir(&runtime_root) // REQUIRED: worker operates from runtime root
         .env("HOME", home)
         .args(args)
         .output()
@@ -292,7 +330,7 @@ pub struct InboxEntry {
 #[tauri::command]
 fn list_agent_inbox(app: tauri::AppHandle)
 -> Result<Vec<InboxEntry>, String> {
-    let root = resolve_worker_root(&app)?;
+    let root = ensure_worker_runtime_dirs(&app)?;
     let entries = inbox::scan_system_inbox(&root).map_err(|e| e.to_string())?;
 
     let mut out = vec![];
@@ -316,13 +354,14 @@ fn list_agent_inbox(app: tauri::AppHandle)
 #[tauri::command]
 fn approve_agent_tenant(app: tauri::AppHandle, tenant: String)
 -> Result<bool, String> {
-    let root = resolve_worker_root(&app)?;
+    let root = ensure_worker_runtime_dirs(&app)?;
 
     tenant_state::mark_authorized(&root, &tenant)
         .map_err(|e| e.to_string())?;
 
-    let bin = resolve_worker_bin(&root)?;
+    let bin = resolve_bundled_worker_bin(&app)?;
 
+    // signing key is in the WORKER RUNTIME ROOT
     let key_path = root.join("keys/maintainers/admin1.key");
     if !key_path.exists() {
         return Err(format!("Signing key missing at {}", key_path.display()));
@@ -330,7 +369,7 @@ fn approve_agent_tenant(app: tauri::AppHandle, tenant: String)
 
     let status = std::process::Command::new(bin)
         .current_dir(&root)
-        .env("HOME", env::var("HOME").unwrap_or_default())
+        .env("HOME", env::var("HOME").or_else(|_| env::var("USERPROFILE")).unwrap_or_default())
         .arg("sign")
         .arg("--dir").arg(root.join("modules").join(&tenant))
         .arg("--key").arg(&key_path)
