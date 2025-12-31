@@ -76,7 +76,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/state"
           New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/keys/maintainers"
 
-          # 🔑 REQUIRED placeholder signing key (build-time only)
+          # Build-time placeholder key (NOT a real signing key)
           New-Item -ItemType File -Force -Path "src-tauri/resources/worker/keys/maintainers/admin1.key" | Out-Null
 
           $api = "https://api.github.com/repos/$env:WORKER_REPO/releases/tags/$env:WORKER_RELEASE_TAG"
@@ -113,7 +113,6 @@ jobs:
         run: |
           set -e
 
-          mkdir -p src-tauri/resources/worker
           mkdir -p src-tauri/resources/worker/modules
           mkdir -p src-tauri/resources/worker/logs
           mkdir -p src-tauri/resources/worker/quarantine
@@ -122,7 +121,7 @@ jobs:
           mkdir -p src-tauri/resources/worker/state
           mkdir -p src-tauri/resources/worker/keys/maintainers
 
-          # 🔑 REQUIRED placeholder signing key (build-time only)
+          # Build-time placeholder key (NOT a real signing key)
           touch src-tauri/resources/worker/keys/maintainers/admin1.key
 
           api="https://api.github.com/repos/${WORKER_REPO}/releases/tags/${WORKER_RELEASE_TAG}"
@@ -147,13 +146,12 @@ jobs:
           touch src-tauri/resources/worker/nightcore.exe
 
       # -----------------------------
-      # FINAL GUARANTEE (Tauri v2)
+      # FINAL GUARANTEE (CRITICAL)
       # -----------------------------
       - name: Ensure worker runtime directories exist
         shell: bash
         run: |
           cd src-tauri
-          mkdir -p resources/worker
           mkdir -p resources/worker/modules
           mkdir -p resources/worker/logs
           mkdir -p resources/worker/quarantine
@@ -162,6 +160,14 @@ jobs:
           mkdir -p resources/worker/state
           mkdir -p resources/worker/keys/maintainers
           touch resources/worker/keys/maintainers/admin1.key
+
+      # -----------------------------
+      # CLEAN TAURI CACHE (FIXES PERMISSION STALENESS)
+      # -----------------------------
+      - name: Clean Tauri build cache
+        shell: bash
+        run: |
+          rm -rf src-tauri/target
 
       # -----------------------------
       # Build Tauri app
