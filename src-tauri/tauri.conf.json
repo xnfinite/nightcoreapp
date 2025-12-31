@@ -59,8 +59,8 @@
 
     "resources": [
       "resources/worker/nightcore",
-      "resources/worker/nightcore.exe",
-      "resources/worker/keys/maintainers/admin1.key"
+      "resources/worker/nightcore.exe"
+      
     ]
   }
 }
