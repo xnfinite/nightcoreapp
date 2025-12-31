@@ -66,9 +66,6 @@ pub struct GuardianDecisionLite {
 
 // ============================================================
 // ROOTS (BETA SAFE)
-// - Worker runtime root: ~/.nightcore (authoritative runtime state)
-// - Bundled worker binary: resource_dir()/worker/nightcore(.exe)
-// - App root: app_data_dir()/NightCore (safe UI-owned drop/state)
 // ============================================================
 
 fn home_dir() -> Result<PathBuf, String> {
@@ -91,18 +88,14 @@ pub fn resolve_app_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(root)
 }
 
-// NOTE: Keep this name because your codebase already calls it a lot.
-// In beta, "worker_root" means the RUNTIME ROOT (not bundled resources).
+// KEEP NAME — used everywhere
 pub fn resolve_worker_root(_app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let root = resolve_worker_runtime_root()?;
-    Ok(root)
+    resolve_worker_runtime_root()
 }
 
 fn ensure_worker_runtime_dirs(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let root = resolve_worker_root(app)?;
 
-    // Create the runtime root and the folders the GUI expects.
-    // This prevents "Worker root not found" on first launch.
     fs::create_dir_all(&root).map_err(|e| e.to_string())?;
 
     let dirs = [
@@ -116,27 +109,53 @@ fn ensure_worker_runtime_dirs(app: &tauri::AppHandle) -> Result<PathBuf, String>
     ];
 
     for d in dirs {
-        let p = root.join(d);
-        let _ = fs::create_dir_all(p);
+        let _ = fs::create_dir_all(root.join(d));
     }
 
     Ok(root)
 }
 
+// ============================================================
+// 🔧 FIXED: WINDOWS-SAFE WORKER BINARY RESOLUTION
+// ============================================================
 fn resolve_bundled_worker_bin(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let resource_dir = app.path().resource_dir().map_err(|e| e.to_string())?;
-    let worker_dir = resource_dir.join("worker");
 
     #[cfg(windows)]
-    let bin = worker_dir.join("nightcore.exe");
+    let exe = "nightcore.exe";
     #[cfg(not(windows))]
-    let bin = worker_dir.join("nightcore");
+    let exe = "nightcore";
 
-    if !bin.exists() {
-        return Err(format!("Worker binary missing at {}", bin.display()));
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    // 1) <resource_dir>/worker/nightcore(.exe)
+    candidates.push(resource_dir.join("worker").join(exe));
+
+    // 2) <resource_dir>/resources/worker/nightcore(.exe)
+    candidates.push(resource_dir.join("resources").join("worker").join(exe));
+
+    // 3) <resource_dir>/../resources/worker/nightcore(.exe)
+    if let Some(parent) = resource_dir.parent() {
+        candidates.push(parent.join("resources").join("worker").join(exe));
     }
 
-    Ok(bin)
+    // 4) <current_exe>/resources/worker/nightcore(.exe)
+    if let Ok(cur) = std::env::current_exe() {
+        if let Some(dir) = cur.parent() {
+            candidates.push(dir.join("resources").join("worker").join(exe));
+        }
+    }
+
+    for c in candidates {
+        if c.exists() {
+            return Ok(c);
+        }
+    }
+
+    Err(format!(
+        "Worker binary missing (checked Tauri bundle layouts). resource_dir={}",
+        resource_dir.display()
+    ))
 }
 
 // ============================================================
@@ -248,7 +267,6 @@ async fn get_full_system_scan(app: tauri::AppHandle) -> FullSystemStatus {
 fn get_guardian_decisions(_app: tauri::AppHandle)
 -> Result<Vec<GuardianDecisionLite>, String> {
 
-    // tolerate missing file before first execution
     let raw = match read_runtime_file("logs/guardian_decisions.jsonl".into()) {
         Ok(v) => v,
         Err(_) => return Ok(vec![]),
@@ -272,7 +290,7 @@ fn get_tenant_states(app: tauri::AppHandle)
 }
 
 // ============================================================
-// RUNTIME FILE READER (READ-ONLY)
+// RUNTIME FILE READER
 // ============================================================
 #[tauri::command]
 fn read_runtime_file(rel: String) -> Result<String, String> {
@@ -303,7 +321,7 @@ async fn run_worker_cmd(
         .unwrap_or_default();
 
     let output = std::process::Command::new(bin)
-        .current_dir(&runtime_root) // REQUIRED: worker operates from runtime root
+        .current_dir(&runtime_root)
         .env("HOME", home)
         .args(args)
         .output()
@@ -361,7 +379,6 @@ fn approve_agent_tenant(app: tauri::AppHandle, tenant: String)
 
     let bin = resolve_bundled_worker_bin(&app)?;
 
-    // signing key is in the WORKER RUNTIME ROOT
     let key_path = root.join("keys/maintainers/admin1.key");
     if !key_path.exists() {
         return Err(format!("Signing key missing at {}", key_path.display()));
@@ -432,3 +449,4 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
