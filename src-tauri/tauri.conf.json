@@ -63,7 +63,6 @@
 
       "resources/worker/modules",
       "resources/worker/logs",
-      "resources/worker/state",
       "resources/worker/quarantine",
       "resources/worker/proof",
       "resources/worker/guardian",
