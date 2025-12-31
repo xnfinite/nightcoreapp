@@ -60,14 +60,6 @@
     "resources": [
       "resources/worker/nightcore",
       "resources/worker/nightcore.exe",
-
-      "resources/worker/modules",
-      "resources/worker/logs",
-      "resources/worker/quarantine",
-      "resources/worker/proof",
-      "resources/worker/guardian",
-
-      "resources/worker/keys",
       "resources/worker/keys/maintainers/admin1.key"
     ]
   }
