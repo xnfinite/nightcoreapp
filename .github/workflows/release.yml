@@ -26,11 +26,24 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      # -------------------------------------------------
+      # Checkout
+      # -------------------------------------------------
       - uses: actions/checkout@v4
 
-      # -----------------------------
-      # Node / frontend
-      # -----------------------------
+      # -------------------------------------------------
+      # 🔑 REQUIRED BUILD-TIME RESOURCE (TAURI v2)
+      # MUST exist BEFORE any build scripts run
+      # -------------------------------------------------
+      - name: Pre-create worker resource paths (build-time)
+        shell: bash
+        run: |
+          mkdir -p src-tauri/resources/worker/keys/maintainers
+          touch src-tauri/resources/worker/keys/maintainers/admin1.key
+
+      # -------------------------------------------------
+      # Node / Frontend
+      # -------------------------------------------------
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -38,14 +51,14 @@ jobs:
       - run: npm install
       - run: npm run build
 
-      # -----------------------------
+      # -------------------------------------------------
       # Rust / Tauri
-      # -----------------------------
+      # -------------------------------------------------
       - uses: dtolnay/rust-toolchain@stable
 
-      # -----------------------------
+      # -------------------------------------------------
       # Linux system deps
-      # -----------------------------
+      # -------------------------------------------------
       - if: matrix.target == 'linux'
         run: |
           sudo apt-get update
@@ -57,9 +70,9 @@ jobs:
             pkg-config \
             jq
 
-      # -----------------------------
+      # -------------------------------------------------
       # Worker download — WINDOWS
-      # -----------------------------
+      # -------------------------------------------------
       - if: matrix.target == 'windows'
         shell: pwsh
         env:
@@ -74,10 +87,6 @@ jobs:
           New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/proof"
           New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/guardian"
           New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/state"
-          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/keys/maintainers"
-
-          # Build-time placeholder key (NOT a real signing key)
-          New-Item -ItemType File -Force -Path "src-tauri/resources/worker/keys/maintainers/admin1.key" | Out-Null
 
           $api = "https://api.github.com/repos/$env:WORKER_REPO/releases/tags/$env:WORKER_RELEASE_TAG"
 
@@ -85,14 +94,9 @@ jobs:
             -Headers @{ Authorization = "Bearer $env:GH_TOKEN"; "User-Agent" = "nightcore-ci" } `
             -Uri $api
 
-          $asset = $null
-          foreach ($a in $release.assets) {
-            if ($a.name -eq $env:WORKER_ASSET_WINDOWS) {
-              $asset = $a
-            }
-          }
+          $asset = $release.assets | Where-Object { $_.name -eq $env:WORKER_ASSET_WINDOWS }
 
-          if ($null -eq $asset) {
+          if (-not $asset) {
             throw "Worker Windows asset not found"
           }
 
@@ -103,9 +107,9 @@ jobs:
 
           New-Item -ItemType File -Force -Path "src-tauri/resources/worker/nightcore" | Out-Null
 
-      # -----------------------------
+      # -------------------------------------------------
       # Worker download — LINUX
-      # -----------------------------
+      # -------------------------------------------------
       - if: matrix.target == 'linux'
         shell: bash
         env:
@@ -113,16 +117,7 @@ jobs:
         run: |
           set -e
 
-          mkdir -p src-tauri/resources/worker/modules
-          mkdir -p src-tauri/resources/worker/logs
-          mkdir -p src-tauri/resources/worker/quarantine
-          mkdir -p src-tauri/resources/worker/proof
-          mkdir -p src-tauri/resources/worker/guardian
-          mkdir -p src-tauri/resources/worker/state
-          mkdir -p src-tauri/resources/worker/keys/maintainers
-
-          # Build-time placeholder key (NOT a real signing key)
-          touch src-tauri/resources/worker/keys/maintainers/admin1.key
+          mkdir -p src-tauri/resources/worker
 
           api="https://api.github.com/repos/${WORKER_REPO}/releases/tags/${WORKER_RELEASE_TAG}"
 
@@ -145,38 +140,23 @@ jobs:
 
           touch src-tauri/resources/worker/nightcore.exe
 
-      # -----------------------------
-      # FINAL GUARANTEE (CRITICAL)
-      # -----------------------------
+      # -------------------------------------------------
+      # Final directory guarantee (safe redundancy)
+      # -------------------------------------------------
       - name: Ensure worker runtime directories exist
         shell: bash
         run: |
-          cd src-tauri
-          mkdir -p resources/worker/modules
-          mkdir -p resources/worker/logs
-          mkdir -p resources/worker/quarantine
-          mkdir -p resources/worker/proof
-          mkdir -p resources/worker/guardian
-          mkdir -p resources/worker/state
-          mkdir -p resources/worker/keys/maintainers
-          touch resources/worker/keys/maintainers/admin1.key
+          mkdir -p src-tauri/resources/worker/{modules,logs,quarantine,proof,guardian,state,keys/maintainers}
+          touch src-tauri/resources/worker/keys/maintainers/admin1.key
 
-      # -----------------------------
-      # CLEAN TAURI CACHE (FIXES PERMISSION STALENESS)
-      # -----------------------------
-      - name: Clean Tauri build cache
-        shell: bash
-        run: |
-          rm -rf src-tauri/target
-
-      # -----------------------------
-      # Build Tauri app
-      # -----------------------------
+      # -------------------------------------------------
+      # Build Tauri App
+      # -------------------------------------------------
       - run: npx tauri build
 
-      # -----------------------------
-      # Upload artifacts
-      # -----------------------------
+      # -------------------------------------------------
+      # Upload Artifacts
+      # -------------------------------------------------
       - uses: actions/upload-artifact@v4
         with:
           name: nightcore-${{ matrix.target }}
