@@ -1,14 +1,19 @@
 name: Night Core Console — Build
 
 on:
+  # Manual trigger (use this while iterating)
   workflow_dispatch:
+
+  # Normal CI on main (VERY IMPORTANT)
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
 env:
   WORKER_REPO: xnfinite/nightcore-worker
-  WORKER_RELEASE_TAG: v1.1.4
+  WORKER_RELEASE_TAG: v1.1.4   # already exists — OK
   WORKER_ASSET_WINDOWS: nightcore.exe
   WORKER_ASSET_LINUX: nightcore-worker-linux
 
@@ -32,14 +37,25 @@ jobs:
       - uses: actions/checkout@v4
 
       # -------------------------------------------------
-      # 🔑 REQUIRED BUILD-TIME RESOURCE (TAURI v2)
-      # MUST exist BEFORE any build scripts run
+      # 🔑 BUILD-TIME RESOURCE (TAURI v2)
+      # MUST exist BEFORE tauri build scripts run
+      # OS-NATIVE creation to avoid shell issues
       # -------------------------------------------------
-      - name: Pre-create worker resource paths (build-time)
+      - name: Pre-create worker key (Linux)
+        if: matrix.target == 'linux'
         shell: bash
         run: |
           mkdir -p src-tauri/resources/worker/keys/maintainers
           touch src-tauri/resources/worker/keys/maintainers/admin1.key
+
+      - name: Pre-create worker key (Windows)
+        if: matrix.target == 'windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force `
+            -Path "src-tauri/resources/worker/keys/maintainers" | Out-Null
+          New-Item -ItemType File -Force `
+            -Path "src-tauri/resources/worker/keys/maintainers/admin1.key" | Out-Null
 
       # -------------------------------------------------
       # Node / Frontend
@@ -71,6 +87,15 @@ jobs:
             jq
 
       # -------------------------------------------------
+      # Debug: confirm worker tag is visible
+      # -------------------------------------------------
+      - name: Debug worker release tag
+        shell: bash
+        run: |
+          echo "Using worker repo: $WORKER_REPO"
+          echo "Using worker tag:  $WORKER_RELEASE_TAG"
+
+      # -------------------------------------------------
       # Worker download — WINDOWS
       # -------------------------------------------------
       - if: matrix.target == 'windows'
@@ -80,29 +105,34 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
 
-          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker"
-          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/modules"
-          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/logs"
-          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/quarantine"
-          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/proof"
-          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/guardian"
-          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/state"
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker" | Out-Null
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/modules" | Out-Null
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/logs" | Out-Null
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/quarantine" | Out-Null
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/proof" | Out-Null
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/guardian" | Out-Null
+          New-Item -ItemType Directory -Force -Path "src-tauri/resources/worker/state" | Out-Null
 
           $api = "https://api.github.com/repos/$env:WORKER_REPO/releases/tags/$env:WORKER_RELEASE_TAG"
-
           $release = Invoke-RestMethod `
             -Headers @{ Authorization = "Bearer $env:GH_TOKEN"; "User-Agent" = "nightcore-ci" } `
             -Uri $api
 
-          $asset = $release.assets | Where-Object { $_.name -eq $env:WORKER_ASSET_WINDOWS }
+          $asset = $release.assets |
+            Where-Object { $_.name -eq $env:WORKER_ASSET_WINDOWS } |
+            Select-Object -First 1
 
           if (-not $asset) {
             throw "Worker Windows asset not found"
           }
 
           Invoke-WebRequest `
-            -Uri $asset.browser_download_url `
-            -Headers @{ "User-Agent" = "nightcore-ci" } `
+            -Headers @{
+              Authorization = "Bearer $env:GH_TOKEN"
+              Accept        = "application/octet-stream"
+              "User-Agent"  = "nightcore-ci"
+            } `
+            -Uri $asset.url `
             -OutFile "src-tauri/resources/worker/nightcore.exe"
 
           New-Item -ItemType File -Force -Path "src-tauri/resources/worker/nightcore" | Out-Null
@@ -120,7 +150,6 @@ jobs:
           mkdir -p src-tauri/resources/worker
 
           api="https://api.github.com/repos/${WORKER_REPO}/releases/tags/${WORKER_RELEASE_TAG}"
-
           json="$(curl -fsSL \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "User-Agent: nightcore-ci" \
@@ -128,22 +157,26 @@ jobs:
 
           asset_url="$(echo "${json}" | jq -r \
             --arg name "${WORKER_ASSET_LINUX}" \
-            '.assets[] | select(.name == $name) | .browser_download_url')"
+            '.assets[] | select(.name == $name) | .url')"
 
           if [ -z "${asset_url}" ] || [ "${asset_url}" = "null" ]; then
             echo "Worker Linux asset not found"
             exit 1
           fi
 
-          curl -fsSL "${asset_url}" -o src-tauri/resources/worker/nightcore
-          chmod +x src-tauri/resources/worker/nightcore
+          curl -fsSL \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/octet-stream" \
+            -L "${asset_url}" \
+            -o src-tauri/resources/worker/nightcore
 
+          chmod +x src-tauri/resources/worker/nightcore
           touch src-tauri/resources/worker/nightcore.exe
 
       # -------------------------------------------------
-      # Final directory guarantee (safe redundancy)
+      # Final directory safety (never hurts)
       # -------------------------------------------------
-      - name: Ensure worker runtime directories exist
+      - name: Final worker directory guarantee
         shell: bash
         run: |
           mkdir -p src-tauri/resources/worker/{modules,logs,quarantine,proof,guardian,state,keys/maintainers}
