@@ -62,7 +62,8 @@ src-tauri/resources/worker/guardian
 src-tauri/resources/worker/state/**
 src-tauri/resources/worker/state
 
-# Allow directory placeholder so Tauri build passes
+# ✅ Allow directory placeholder so Tauri build passes
+!src-tauri/resources/worker/state/
 !src-tauri/resources/worker/state/.gitkeep
 
 # ----------------
