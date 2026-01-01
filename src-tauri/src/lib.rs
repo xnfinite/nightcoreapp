@@ -93,18 +93,24 @@ pub fn resolve_worker_root(_app: &tauri::AppHandle) -> Result<PathBuf, String> {
     resolve_worker_runtime_root()
 }
 
+// ============================================================
+// 🔧 FIX: ENSURE ALL WORKER RUNTIME DIRECTORIES EXIST
+// ============================================================
 fn ensure_worker_runtime_dirs(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let root = resolve_worker_root(app)?;
 
     fs::create_dir_all(&root).map_err(|e| e.to_string())?;
 
+    // IMPORTANT:
+    // Windows throws os error 3 if ANY of these are missing.
     let dirs = [
         "modules",
         "logs",
-        "quarantine",
-        "proof",
         "guardian",
+        "proof",
+        "quarantine",
         "state",
+        "keys",
         "keys/maintainers",
     ];
 
@@ -116,7 +122,7 @@ fn ensure_worker_runtime_dirs(app: &tauri::AppHandle) -> Result<PathBuf, String>
 }
 
 // ============================================================
-// 🔧 FIXED: WINDOWS-SAFE WORKER BINARY RESOLUTION
+// 🔧 WINDOWS-SAFE WORKER BINARY RESOLUTION
 // ============================================================
 fn resolve_bundled_worker_bin(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let resource_dir = app.path().resource_dir().map_err(|e| e.to_string())?;
@@ -128,18 +134,13 @@ fn resolve_bundled_worker_bin(app: &tauri::AppHandle) -> Result<PathBuf, String>
 
     let mut candidates: Vec<PathBuf> = Vec::new();
 
-    // 1) <resource_dir>/worker/nightcore(.exe)
     candidates.push(resource_dir.join("worker").join(exe));
-
-    // 2) <resource_dir>/resources/worker/nightcore(.exe)
     candidates.push(resource_dir.join("resources").join("worker").join(exe));
 
-    // 3) <resource_dir>/../resources/worker/nightcore(.exe)
     if let Some(parent) = resource_dir.parent() {
         candidates.push(parent.join("resources").join("worker").join(exe));
     }
 
-    // 4) <current_exe>/resources/worker/nightcore(.exe)
     if let Ok(cur) = std::env::current_exe() {
         if let Some(dir) = cur.parent() {
             candidates.push(dir.join("resources").join("worker").join(exe));
@@ -449,4 +450,3 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-
