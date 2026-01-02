@@ -65,7 +65,7 @@ pub struct GuardianDecisionLite {
 }
 
 // ============================================================
-// ROOTS (BETA SAFE)
+// ROOTS
 // ============================================================
 
 fn home_dir() -> Result<PathBuf, String> {
@@ -81,28 +81,14 @@ pub fn resolve_worker_runtime_root() -> Result<PathBuf, String> {
     Ok(home.join(".nightcore"))
 }
 
-pub fn resolve_app_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let root = base.join("NightCore");
-    fs::create_dir_all(&root).map_err(|e| e.to_string())?;
-    Ok(root)
-}
-
-// KEEP NAME — used everywhere
 pub fn resolve_worker_root(_app: &tauri::AppHandle) -> Result<PathBuf, String> {
     resolve_worker_runtime_root()
 }
 
-// ============================================================
-// 🔧 FIX: ENSURE ALL WORKER RUNTIME DIRECTORIES EXIST
-// ============================================================
 fn ensure_worker_runtime_dirs(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let root = resolve_worker_root(app)?;
-
     fs::create_dir_all(&root).map_err(|e| e.to_string())?;
 
-    // IMPORTANT:
-    // Windows throws os error 3 if ANY of these are missing.
     let dirs = [
         "modules",
         "logs",
@@ -122,7 +108,7 @@ fn ensure_worker_runtime_dirs(app: &tauri::AppHandle) -> Result<PathBuf, String>
 }
 
 // ============================================================
-// 🔧 WINDOWS-SAFE WORKER BINARY RESOLUTION
+// WORKER BINARY RESOLUTION
 // ============================================================
 fn resolve_bundled_worker_bin(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     let resource_dir = app.path().resource_dir().map_err(|e| e.to_string())?;
@@ -132,10 +118,10 @@ fn resolve_bundled_worker_bin(app: &tauri::AppHandle) -> Result<PathBuf, String>
     #[cfg(not(windows))]
     let exe = "nightcore";
 
-    let mut candidates: Vec<PathBuf> = Vec::new();
-
-    candidates.push(resource_dir.join("worker").join(exe));
-    candidates.push(resource_dir.join("resources").join("worker").join(exe));
+    let mut candidates = vec![
+        resource_dir.join("worker").join(exe),
+        resource_dir.join("resources").join("worker").join(exe),
+    ];
 
     if let Some(parent) = resource_dir.parent() {
         candidates.push(parent.join("resources").join("worker").join(exe));
@@ -154,7 +140,7 @@ fn resolve_bundled_worker_bin(app: &tauri::AppHandle) -> Result<PathBuf, String>
     }
 
     Err(format!(
-        "Worker binary missing (checked Tauri bundle layouts). resource_dir={}",
+        "Worker binary missing (checked bundle layouts). resource_dir={}",
         resource_dir.display()
     ))
 }
@@ -171,6 +157,22 @@ fn greet(name: &str) -> String {
 fn get_worker_logs_path(app: tauri::AppHandle) -> Result<String, String> {
     let root = ensure_worker_runtime_dirs(&app)?;
     Ok(root.join("logs").to_string_lossy().to_string())
+}
+
+// ============================================================
+// RUNTIME FILE READER
+// ============================================================
+#[tauri::command]
+fn read_runtime_file(rel: String) -> Result<String, String> {
+    let root = resolve_worker_runtime_root()?;
+    let path = root.join(rel);
+
+    if !path.starts_with(&root) {
+        return Err("Invalid runtime file path".into());
+    }
+
+    fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read {}: {}", path.display(), e))
 }
 
 // ============================================================
@@ -211,24 +213,17 @@ async fn get_full_system_scan(app: tauri::AppHandle) -> FullSystemStatus {
     let worker_root = ensure_worker_runtime_dirs(&app).unwrap_or_else(|_| PathBuf::from("unknown"));
 
     let home = env::var("HOME").or_else(|_| env::var("USERPROFILE")).unwrap_or_default();
-
-    let display = worker_root
-        .to_string_lossy()
-        .to_string()
-        .replace(home.as_str(), "~");
+    let display = worker_root.to_string_lossy().replace(home.as_str(), "~");
 
     let modules = worker_root.join("modules");
     let logs = worker_root.join("logs");
 
     let mut tenants = vec![];
-
     if modules.exists() {
         if let Ok(entries) = fs::read_dir(&modules) {
             for e in entries.flatten() {
                 let p = e.path();
-                if !p.is_dir() {
-                    continue;
-                }
+                if !p.is_dir() { continue; }
 
                 tenants.push(TenantInfo {
                     name: e.file_name().to_string_lossy().to_string(),
@@ -267,7 +262,6 @@ async fn get_full_system_scan(app: tauri::AppHandle) -> FullSystemStatus {
 #[tauri::command]
 fn get_guardian_decisions(_app: tauri::AppHandle)
 -> Result<Vec<GuardianDecisionLite>, String> {
-
     let raw = match read_runtime_file("logs/guardian_decisions.jsonl".into()) {
         Ok(v) => v,
         Err(_) => return Ok(vec![]),
@@ -288,22 +282,6 @@ fn get_tenant_states(app: tauri::AppHandle)
 -> Result<Vec<tenant_state::TenantState>, String> {
     let root = ensure_worker_runtime_dirs(&app)?;
     tenant_state::list_tenant_states(&root).map_err(|e| e.to_string())
-}
-
-// ============================================================
-// RUNTIME FILE READER
-// ============================================================
-#[tauri::command]
-fn read_runtime_file(rel: String) -> Result<String, String> {
-    let root = resolve_worker_runtime_root()?;
-    let path = root.join(rel);
-
-    if !path.starts_with(&root) {
-        return Err("Invalid runtime file path".into());
-    }
-
-    fs::read_to_string(&path)
-        .map_err(|e| format!("Failed to read {}: {}", path.display(), e))
 }
 
 // ============================================================
@@ -336,7 +314,7 @@ async fn run_worker_cmd(
 }
 
 // ============================================================
-// INBOX / APPROVAL
+// INBOX
 // ============================================================
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InboxEntry {
@@ -370,6 +348,9 @@ fn list_agent_inbox(app: tauri::AppHandle)
     Ok(out)
 }
 
+// ============================================================
+// APPROVAL — FIXED
+// ============================================================
 #[tauri::command]
 fn approve_agent_tenant(app: tauri::AppHandle, tenant: String)
 -> Result<bool, String> {
@@ -380,22 +361,16 @@ fn approve_agent_tenant(app: tauri::AppHandle, tenant: String)
 
     let bin = resolve_bundled_worker_bin(&app)?;
 
-    let key_path = root.join("keys/maintainers/admin1.key");
-    if !key_path.exists() {
-        return Err(format!("Signing key missing at {}", key_path.display()));
-    }
-
     let status = std::process::Command::new(bin)
         .current_dir(&root)
         .env("HOME", env::var("HOME").or_else(|_| env::var("USERPROFILE")).unwrap_or_default())
-        .arg("sign")
-        .arg("--dir").arg(root.join("modules").join(&tenant))
-        .arg("--key").arg(&key_path)
+        .arg("approve")
+        .arg(&tenant)
         .status()
         .map_err(|e| e.to_string())?;
 
     if !status.success() {
-        return Err("Approval signing failed".into());
+        return Err("Worker approval failed".into());
     }
 
     Ok(true)
@@ -426,17 +401,14 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             get_worker_logs_path,
+            read_runtime_file,
             get_full_system_scan,
             get_guardian_decisions,
             get_tenant_states,
-            read_runtime_file,
             run_worker_cmd,
-
             import_tenant_from_file,
-
             list_agent_inbox,
             approve_agent_tenant,
-
             tauri_get_pro_status,
             unlock_pro_from_license,
             pro_deactivate,
