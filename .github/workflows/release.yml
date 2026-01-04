@@ -13,7 +13,7 @@ on:
 
 env:
   WORKER_REPO: xnfinite/nightcore-worker
-  WORKER_RELEASE_TAG: v1.1.8 # already exists — OK
+  WORKER_RELEASE_TAG: v1.1.9 # already exists — OK
   WORKER_ASSET_WINDOWS: nightcore.exe
   WORKER_ASSET_LINUX: nightcore-worker-linux
 
